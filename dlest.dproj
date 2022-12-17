@@ -128,6 +128,7 @@
         <DCCReference Include="Units\Objects\uPortableExecutable.pas"/>
         <DCCReference Include="Units\Objects\uExceptions.pas"/>
         <DCCReference Include="Units\uGraphicUtils.pas"/>
+        <DCCReference Include="Units\Threads\Components\uWorkerThread.pas"/>
         <DCCReference Include="Units\Forms\uFormMain.pas">
             <Form>FormMain</Form>
         </DCCReference>
@@ -140,10 +141,21 @@
         <DCCReference Include="Units\uConstants.pas"/>
         <DCCReference Include="Units\Forms\uFormProcessList.pas">
             <Form>FormProcessList</Form>
-            <FormType>dfm</FormType>
+        </DCCReference>
+        <DCCReference Include="Units\Forms\uFormThreadManager.pas">
+            <Form>FormThreadManager</Form>
         </DCCReference>
         <DCCReference Include="Units\Threads\uEnumProcessThread.pas"/>
         <DCCReference Include="Units\Threads\uEnumModulesThread.pas"/>
+        <DCCReference Include="Units\Threads\uScanFilesThread.pas"/>
+        <DCCReference Include="Units\Forms\uFormTask.pas">
+            <Form>FormTask</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
+        <DCCReference Include="Units\Forms\uFormScanFolder.pas">
+            <Form>FormScanFolder</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

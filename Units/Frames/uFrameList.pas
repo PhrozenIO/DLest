@@ -24,7 +24,8 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, VirtualTrees,
-  Vcl.ExtCtrls, OMultiPanel, uPortableExecutable, Vcl.Menus;
+  Vcl.ExtCtrls, OMultiPanel, uPortableExecutable, Vcl.Menus, Vcl.ComCtrls,
+  Vcl.StdCtrls, Vcl.Buttons;
 
 type
   TTreeData = record
@@ -36,12 +37,15 @@ type
   PTreeData = ^TTreeData;
 
   TFrameList = class(TFrame)
-    MultiPanel: TOMultiPanel;
-    VST: TVirtualStringTree;
-    PanelDetail: TPanel;
     PopupMenu: TPopupMenu;
     ExpandAll1: TMenuItem;
     CollapseAll1: TMenuItem;
+    ProgressBar: TProgressBar;
+    N1: TMenuItem;
+    CloseTab1: TMenuItem;
+    PanelSearch: TPanel;
+    EditRegex: TButtonedEdit;
+    VST: TVirtualStringTree;
     procedure VSTChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode;
@@ -61,9 +65,15 @@ type
     procedure ExpandAll1Click(Sender: TObject);
     procedure CollapseAll1Click(Sender: TObject);
     procedure PopupMenuPopup(Sender: TObject);
+    procedure EditRegexChange(Sender: TObject);
+    procedure EditRegexRightButtonClick(Sender: TObject);
+    procedure CloseTab1Click(Sender: TObject);
   private
     FGrouped      : Boolean;
     FTotalExports : UInt64;
+
+    {@M}
+    procedure FilterList(const AReset : Boolean);
   public
     {@C}
     constructor Create(AOwner : TComponent); override;
@@ -75,22 +85,139 @@ type
 
 implementation
 
-uses uFormMain, uConstants, System.Math, uGraphicUtils;
+uses uFormMain, uConstants, System.Math, uGraphicUtils, System.RegularExpressions;
 
 {$R *.dfm}
+
+procedure TFrameList.FilterList(const AReset : Boolean);
+var pNode : PVirtualNode;
+    pData : PTreeData;
+
+    // Required cause VST.VisibleCount does not seems to work well
+    function GetVisibleNodesCount() : UInt64;
+    var pNode : PVirtualNode;
+    begin
+      result := 0;
+      ///
+
+      for pNode in VST.Nodes do begin
+        if vsVisible in pNode.States then
+          Inc(result);
+      end;
+    end;
+
+    procedure UpdateParentVisibility();
+    var pNode      : PVirtualNode;
+        pChildNode : PVirtualNode;
+        AVisible   : Boolean;
+    begin
+      if not FGrouped then
+        Exit();
+      ///
+
+      for pNode in VST.Nodes(False) do begin
+        if VST.GetNodeLevel(pNode) <> 0 then
+          continue;
+        ///
+
+        AVisible := False;
+
+        pChildNode := pNode.FirstChild;
+        if not Assigned(pChildNode) then
+          Exit();
+
+        repeat
+          AVisible := vsVisible in pChildNode.States;
+
+          if AVisible then
+            break;
+
+          ///
+          pChildNode := pChildNode.NextSibling;
+        until pChildNode = nil;
+
+        ///
+        if not AVisible then
+          Exclude(pNode.States, vsVisible)
+        else
+          Include(pNode.States, vsVisible);
+      end;
+    end;
+
+begin
+  VST.BeginUpdate();
+  try
+    VST.RootNode.TotalHeight := VST.DefaultNodeHeight;
+    ///
+
+    for pNode in VST.Nodes do begin
+      pData := pNode.GetData;
+      if not Assigned(pData) then
+        continue;
+      ///
+
+      if not Assigned(pData^.ExportEntry) then
+        continue;
+
+      Include(pNode.States, vsVisible);
+
+      if not AReset then begin
+        if TRegEx.IsMatch(pData^.ExportEntry.Name, EditRegex.Text) then
+          Include(pNode.States, vsVisible)
+        else begin
+          Exclude(pNode.States, vsVisible);
+
+          self.EditRegex.RightButton.Visible := True;
+        end;
+      end;
+    end;
+  finally
+    VST.EndUpdate();
+
+    UpdateParentVisibility();
+
+    VST.RootNode.TotalHeight := GetVisibleNodesCount() * VST.DefaultNodeHeight;
+
+    VST.UpdateScrollBars(True);
+  end;
+
+  ///
+  if AReset then
+    EditRegex.RightButton.Visible := False;
+end;
 
 constructor TFrameList.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   ///
 
-  FGrouped      := False;
-  FTotalExports := 0;
+  FGrouped                           := False;
+  FTotalExports                      := 0;
+  self.EditRegex.RightButton.Visible := False;
+end;
+
+procedure TFrameList.CloseTab1Click(Sender: TObject);
+begin
+  FormMain.CloseActiveTab();
 end;
 
 procedure TFrameList.CollapseAll1Click(Sender: TObject);
 begin
   VST.FullCollapse(nil);
+end;
+
+procedure TFrameList.EditRegexChange(Sender: TObject);
+var ADoReset : Boolean;
+begin
+  ADoReset := Length(EditRegex.Text) = 0;
+
+  ///
+  FilterList(ADoReset);
+end;
+
+procedure TFrameList.EditRegexRightButtonClick(Sender: TObject);
+begin
+  FilterList(True);
 end;
 
 procedure TFrameList.ExpandAll1Click(Sender: TObject);

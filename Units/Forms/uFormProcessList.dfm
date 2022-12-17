@@ -167,6 +167,7 @@ object FormProcessList: TFormProcessList
         Header.AutoSizeIndex = -1
         Header.Options = [hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible, hoHeaderClickAutoSort]
         Images = FormMain.VirtualImageList
+        PopupMenu = PopupModules
         StateImages = FormMain.ImageSystem
         TabOrder = 0
         TreeOptions.AutoOptions = [toAutoDropExpand, toAutoScrollOnExpand, toAutoSort, toAutoSpanColumns, toAutoTristateTracking, toAutoDeleteMovedNodes, toAutoChangeScale]
@@ -179,6 +180,7 @@ object FormProcessList: TFormProcessList
         OnGetText = VSTModulesGetText
         OnGetImageIndex = VSTModulesGetImageIndex
         OnGetNodeDataSize = VSTModulesGetNodeDataSize
+        OnNodeDblClick = VSTModulesNodeDblClick
         Touch.InteractiveGestures = [igPan, igPressAndTap]
         Touch.InteractiveGestureOptions = [igoPanSingleFingerHorizontal, igoPanSingleFingerVertical, igoPanInertia, igoPanGutter, igoParentPassthrough]
         Columns = <
@@ -264,11 +266,27 @@ object FormProcessList: TFormProcessList
   end
   object PopupProcess: TPopupMenu
     OnPopup = PopupProcessPopup
-    Left = 316
-    Top = 68
+    Left = 560
+    Top = 40
     object OpenProcess1: TMenuItem
       Caption = 'Open Process'
       OnClick = OpenProcess1Click
+    end
+  end
+  object PopupModules: TPopupMenu
+    OnPopup = PopupModulesPopup
+    Left = 556
+    Top = 231
+    object OpenSelectedModules1: TMenuItem
+      Caption = 'Open Selected Memory Mapped Module(s)'
+      OnClick = OpenSelectedModules1Click
+    end
+    object N1: TMenuItem
+      Caption = '-'
+    end
+    object OpenSelectedModulesFromFiles1: TMenuItem
+      Caption = 'Open Selected Module(s) From File(s)'
+      OnClick = OpenSelectedModulesFromFiles1Click
     end
   end
 end

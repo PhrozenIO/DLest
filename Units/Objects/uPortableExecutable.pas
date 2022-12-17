@@ -327,9 +327,11 @@ begin
   (*
       DOS_STUB
   *)
-  SetLength(FDosStub, FImageDosHeader._lfanew - SizeOf(TImageDosHeader));
+  //SetLength(FDosStub, FImageDosHeader._lfanew - SizeOf(TImageDosHeader));
 
-  Read(@FDosStub[0], Length(FDosStub), True);
+  //Read(@FDosStub[0], Length(FDosStub), True);
+
+  AOffset := FBaseOffset + FImageDosHeader._lfanew;
 
   Read(@FImageNtSignature, SizeOf(DWORD), FImageNtSignatureOffset, True);
 
@@ -455,24 +457,24 @@ begin
 
   FParseFrom := pfFile;
 
-  if Assigned(Wow64DisableWow64FsRedirection) then
-    Wow64DisableWow64FsRedirection(AOldWow64RedirectionValue);
-  try
-    FHandle := CreateFileW(
-        PWideChar(AFileName),
-        GENERIC_READ,
-        FILE_SHARE_READ,
-        nil,
-        OPEN_EXISTING,
-        0,
-        0
-    );
-    if FHandle = INVALID_HANDLE_VALUE then
-      raise EWindowsException.Create('CreateFileW');
-  finally
-    if Assigned(Wow64RevertWow64FsRedirection) then
-      Wow64RevertWow64FsRedirection(AOldWow64RedirectionValue);
-  end;
+//  if Assigned(Wow64DisableWow64FsRedirection) then
+//    Wow64DisableWow64FsRedirection(AOldWow64RedirectionValue);
+//  try
+  FHandle := CreateFileW(
+      PWideChar(AFileName),
+      GENERIC_READ,
+      FILE_SHARE_READ,
+      nil,
+      OPEN_EXISTING,
+      0,
+      0
+  );
+  if FHandle = INVALID_HANDLE_VALUE then
+    raise EWindowsException.Create('CreateFileW');
+//  finally
+//    if Assigned(Wow64RevertWow64FsRedirection) then
+//      Wow64RevertWow64FsRedirection(AOldWow64RedirectionValue);
+//  end;
 
   ///
   self.Parse();

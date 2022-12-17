@@ -26,7 +26,8 @@ uses System.Classes,
      Winapi.Windows,
      VCL.Controls,
      Winapi.PsAPI,
-     Winapi.ShellAPI;
+     Winapi.ShellAPI,
+     uWorkerThread;
 
 type
   TArchitecture = (
@@ -43,14 +44,17 @@ function IsProcessElevated(const hProcess : THandle) : Boolean;
 function IsProcessElevatedById(const AProcessId : Cardinal) : Boolean;
 function IsCurrentProcessElevated() : Boolean;
 function GetImagePathFromProcessId(const AProcessID : Cardinal) : String;
-function DELF_GetModuleFileNameEx(const hProcess, hModule : THandle) : String;
 function FormatSize(const ASize : Int64) : string;
+function DELF_GetModuleFileNameEx(const AProcessId : Cardinal; const hModule : THandle) : String; overload;
+function DELF_GetModuleFileNameEx(const hProcess, hModule : THandle) : String; overload;
+procedure EnumFilesInDirectory(var AFiles : TStringList; ADirectory : String; const AWildCard : String = '*.*'; const ARecursive : Boolean = False; const AValidatePE : Boolean = False; const AThread : TWorkerThread = nil);
+function FastPECheck(const AFilePath : String) : Boolean;
 
 const PROCESS_QUERY_LIMITED_INFORMATION = $1000;
 
 implementation
 
-uses System.Math, System.IOUtils, uExceptions;
+uses System.Math, System.IOUtils, uExceptions, System.Masks;
 
 { _.GetWindowsDirectory }
 function GetWindowsDirectory() : string;
@@ -249,6 +253,24 @@ begin
   end;
 end;
 
+{ _.DELF_GetModuleFileNameEx }
+function DELF_GetModuleFileNameEx(const AProcessId : Cardinal; const hModule : THandle) : String;
+var hProcess : THandle;
+begin
+  result := '';
+  ///
+
+  hProcess := OpenProcess(PROCESS_QUERY_INFORMATION or PROCESS_VM_READ, False, AProcessId);
+  if hProcess = 0 then
+    raise EWindowsException.Create(Format('OpenProcess[pid: %d]', [AProcessId]));
+  try
+    result := DELF_GetModuleFileNameEx(hProcess, hModule);
+  finally
+    if hProcess <> INVALID_HANDLE_VALUE then
+      CloseHandle(hProcess);
+  end;
+end;
+
 { _.FormatSize }
 function FormatSize(const ASize : Int64) : string;
 const AByteDescription : Array[0..8] of string = ('Bytes', 'KiB', 'MB', 'GiB', 'TB', 'PB', 'EB', 'ZB', 'YB');
@@ -261,6 +283,104 @@ begin
     Inc(ACount);
 
   result := Format('%s %s', [FormatFloat('###0.00', ASize / Power(1024, ACount)), AByteDescription[ACount]]);
+end;
+
+{ _.EnumFilesInDirectory }
+procedure EnumFilesInDirectory(var AFiles : TStringList; ADirectory : String; const AWildCard : String = '*.*'; const ARecursive : Boolean = False; const AValidatePE : Boolean = False; const AThread : TWorkerThread = nil);
+var ASearch      : TSearchRec;
+    AFilePath    : String;
+    AIsDirectory : Boolean;
+begin
+  if not Assigned(AFiles) then
+    Exit();
+  ///
+
+  ADirectory := IncludeTrailingPathDelimiter(ADirectory);
+  ///
+
+  if System.SysUtils.FindFirst(Format('%s*.*', [ADirectory, AWildCard]), faAnyFile, ASearch) <> 0 then
+    Exit();
+  try
+    repeat
+      if Assigned(AThread) then begin
+        if AThread.IsTerminated then
+          break;
+      end;
+
+      if (ASearch.Name = '.') or (ASearch.Name = '..') then
+        continue;
+      ///
+
+      AFilePath := Format('%s%s', [ADirectory, ASearch.Name]);
+      ///
+
+      AIsDirectory := (ASearch.Attr and faDirectory) <> 0;
+
+      if (not AIsDirectory) and (MatchesMask(ASearch.Name, AWildCard)) then
+        AFiles.Add(AFilePath);
+
+      if AIsDirectory and ARecursive then
+        EnumFilesInDirectory(AFiles, AFilePath, AWildCard, ARecursive);
+    until System.SysUtils.FindNext(ASearch) <> 0;
+  finally
+    System.SysUtils.FindClose(ASearch);
+  end;
+end;
+
+{ _.FastPECheck }
+function FastPECheck(const AFilePath : String) : Boolean;
+var hFile             : THandle;
+
+    AImageDosHeader   : TImageDosHeader;
+    AImageNtSignature : DWORD;
+    AImageFileHeader  : TImageFileHeader;
+
+    ABytesRead        : Cardinal;
+begin
+  result := False;
+  ///
+
+  hFile := CreateFileW(
+      PWideChar(AFilePath),
+      GENERIC_READ,
+      FILE_SHARE_READ,
+      nil,
+      OPEN_EXISTING,
+      0,
+      0
+  );
+  if hFile = INVALID_HANDLE_VALUE then
+    Exit();
+  try
+    if not ReadFile(hFile, AImageDosHeader, SizeOf(TImageDosHeader), ABytesRead, nil) then
+      Exit();
+
+    if AImageDosHeader.e_magic <> IMAGE_DOS_SIGNATURE then
+      Exit();
+
+    SetFilePointerEx(hFile, AImageDosHeader._lfanew, nil, FILE_BEGIN);
+
+    if not ReadFile(hFile, AImageNtSignature, SizeOf(DWORD), ABytesRead, nil) then
+      Exit();
+
+    if AImageNtSignature <> IMAGE_NT_SIGNATURE then
+      Exit();
+
+    if not ReadFile(hFile, AImageFileHeader, SizeOf(TImageFileHeader), ABytesRead, nil) then
+      Exit();
+
+    {$IFDEF WIN64}
+      if AImageFileHeader.Machine <> IMAGE_FILE_MACHINE_AMD64 then
+    {$ELSE}
+      if AImageFileHeader.Machine <> IMAGE_FILE_MACHINE_I386 then
+    {$ENDIF}
+      Exit();
+
+    ///
+    result := True;
+  finally
+    CloseHandle(hFile);
+  end;
 end;
 
 end.

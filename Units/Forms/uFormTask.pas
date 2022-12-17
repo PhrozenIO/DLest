@@ -17,35 +17,72 @@
 {                                                                              }
 {******************************************************************************}
 
-unit uConstants;
+unit uFormTask;
 
 interface
 
-uses VCL.Graphics,
-     Winapi.Windows;
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, Vcl.VirtualImage,
+  Vcl.StdCtrls, Vcl.ComCtrls, uWorkerThread;
 
-const
-  _ICON_EXPORT           = 0;
-  _ICON_EXPORT_FORWARDED = 1;
-  _ICON_PAGES_DLL        = 2;
-  _ICON_PAGES_DLL_GROUP  = 3;
-  _ICON_PAGES_PROCESS    = 4;
-
-  _STATE_IMAGE_GEAR      = 7;
+type
+  TFormTask = class(TForm)
+    PanelIcon: TPanel;
+    PanelBody: TPanel;
+    VirtualImage1: TVirtualImage;
+    Label1: TLabel;
+    ProgressBar: TProgressBar;
+    PanelBottom: TPanel;
+    ButtonCancel: TButton;
+    procedure FormClose(Sender: TObject; var Action: TCloseAction);
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure ButtonCancelClick(Sender: TObject);
+  private
+    FThread : TWorkerThread;
+  public
+    {@C}
+    constructor Create(AOwner : TComponent; const AThread : TWorkerThread); overload;
+  end;
 
 var
-  _COLOR_GRAD1_BEG   : TColor;
-  _COLOR_GRAD1_END   : TColor;
-  _COLOR_LIST_BG_ALT : TColor;
-  _ODD_LIST_BG_COLOR : TColor;
+  FormTask: TFormTask;
 
 implementation
 
-initialization
-  _COLOR_GRAD1_BEG   := $00CAF3FF;
-  _COLOR_GRAD1_END   := $008CEBFF;
+uses uFormMain;
 
-  _COLOR_LIST_BG_ALT := RGB(230, 250, 255);
-  _ODD_LIST_BG_COLOR := rgb(250, 250, 250);
+{$R *.dfm}
+
+procedure TFormTask.ButtonCancelClick(Sender: TObject);
+begin
+  if Assigned(FThread) then
+    FThread.Terminate;
+
+  ///
+  TButton(Sender).Caption := 'Cancelling...';
+  TButton(Sender).Enabled := False;
+end;
+
+constructor TFormTask.Create(AOwner : TComponent; const AThread : TWorkerThread);
+begin
+  inherited Create(AOwner);
+  ///
+
+  FThread := AThread;
+end;
+
+procedure TFormTask.FormClose(Sender: TObject; var Action: TCloseAction);
+begin
+  Action := caFree;
+end;
+
+procedure TFormTask.FormKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  case Key of
+    27 : ButtonCancel.Click;
+  end;
+end;
 
 end.

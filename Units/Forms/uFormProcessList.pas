@@ -54,6 +54,10 @@ type
     LabelMessage: TLabel;
     PopupProcess: TPopupMenu;
     OpenProcess1: TMenuItem;
+    PopupModules: TPopupMenu;
+    OpenSelectedModules1: TMenuItem;
+    N1: TMenuItem;
+    OpenSelectedModulesFromFiles1: TMenuItem;
     procedure VSTProcessChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTProcessFocusChanged(Sender: TBaseVirtualTree;
       Node: PVirtualNode; Column: TColumnIndex);
@@ -89,12 +93,19 @@ type
     procedure VSTModulesBeforeCellPaint(Sender: TBaseVirtualTree;
       TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
       CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect);
+    procedure OpenSelectedModules1Click(Sender: TObject);
+    procedure PopupModulesPopup(Sender: TObject);
+    procedure VSTModulesNodeDblClick(Sender: TBaseVirtualTree;
+      const HitInfo: THitInfo);
+    procedure OpenSelectedModulesFromFiles1Click(Sender: TObject);
   private
     FTotalModulesSize : UInt64;
 
     {@M}
     procedure DoResize();
     procedure OpenProcess(const pNode : PVirtualNode);
+    procedure OpenSelectedModulesFromMemory();
+    procedure OpenSelectedModulesFromFiles();
   public
     {@M}
     procedure Reset();
@@ -113,7 +124,8 @@ var
 implementation
 
 uses uEnumProcessThread, uEnumExportsThread, uFormMain, uEnumModulesThread,
-     uFunctions, System.Math, uConstants, uGraphicUtils;
+     uFunctions, System.Math, uConstants, uGraphicUtils, Generics.Collections,
+     uFormThreadManager;
 
 {$R *.dfm}
 
@@ -284,6 +296,12 @@ begin
   end;
 end;
 
+procedure TFormProcessList.VSTModulesNodeDblClick(Sender: TBaseVirtualTree;
+  const HitInfo: THitInfo);
+begin
+  self.OpenSelectedModulesFromMemory();
+end;
+
 procedure TFormProcessList.VSTProcessChange(Sender: TBaseVirtualTree;
   Node: PVirtualNode);
 begin
@@ -390,8 +408,10 @@ begin
     Exit();
   ///
 
-  TEnumExportsThread.Create(
-    pData^.ProcessId
+  FormThreadManager.AddWorkerAndStart(
+    TEnumExportsThread.Create(
+      pData^.ProcessId
+    )
   );
 
   ///
@@ -404,9 +424,119 @@ begin
   OpenProcess(VSTProcess.FocusedNode);
 end;
 
+procedure TFormProcessList.PopupModulesPopup(Sender: TObject);
+begin
+  OpenSelectedModules1.Enabled          := VSTModules.FocusedNode <> nil;
+  OpenSelectedModulesFromFiles1.Enabled := VSTModules.FocusedNode <> nil;
+end;
+
 procedure TFormProcessList.PopupProcessPopup(Sender: TObject);
 begin
   self.OpenProcess1.Enabled := VSTProcess.FocusedNode <> nil;
+end;
+
+procedure TFormProcessList.OpenSelectedModulesFromMemory();
+var pNode      : PVirtualNode;
+    pData      : PModuleTreeData;
+    AModules   : TList<Pointer>;
+    AProcessId : Cardinal;
+begin
+  AModules := TList<Pointer>.Create();
+  try
+    AProcessId := 0;
+    ///
+
+    for pNode in VSTModules.Nodes(True) do begin
+      if not (vsSelected in pNode.States) then
+        continue;
+      ///
+
+      pData := pNode.GetData;
+      if not Assigned(pData) then
+        continue;
+      ///
+
+      AModules.Add(pData^.ModuleBase);
+
+      if AProcessId = 0 then
+        AProcessId := pData^.ProcessId;
+    end;
+
+    if AModules.Count > 0 then
+      FormThreadManager.AddWorkerAndStart(
+        TEnumExportsThread.Create(AProcessId, AModules)
+      );
+  finally
+    if Assigned(AModules) then
+      FreeAndNil(AModules);
+
+    ///
+    self.Close();
+  end;
+end;
+
+procedure TFormProcessList.OpenSelectedModulesFromFiles();
+var pNode        : PVirtualNode;
+    pData        : PModuleTreeData;
+    AFiles       : TStringList;
+    ACaption     : String;
+    AProcessName : String;
+begin
+  AFiles := TStringList.Create();
+  try
+    ACaption := '';
+    ///
+
+    for pNode in VSTModules.Nodes(True) do begin
+      if not (vsSelected in pNode.States) then
+        continue;
+      ///
+
+      pData := pNode.GetData;
+      if not Assigned(pData) then
+        continue;
+      ///
+
+      if FastPECheck(pData^.ImagePath) then
+        AFiles.Add(pData^.ImagePath);
+
+      if ACaption.IsEmpty then begin
+        try
+          AProcessName := ExtractFileName(GetImagePathFromProcessId(pData^.ProcessId));
+        except
+          AProcessName := 'Unknown';
+        end;
+
+        ///
+        ACaption := Format('%s (%d)', [
+                      AProcessName,
+                      pData^.ProcessId
+                    ]);
+      end;
+    end;
+
+    if AFiles.Count > 0 then begin
+      FormThreadManager.AddWorkerAndStart(
+        TEnumExportsThread.Create(AFiles, ACaption)
+      );
+    end;
+  finally
+    if Assigned(AFiles) then
+      FreeAndNil(AFiles);
+
+    ///
+    self.Close();
+  end;
+end;
+
+procedure TFormProcessList.OpenSelectedModules1Click(Sender: TObject);
+begin
+  self.OpenSelectedModulesFromMemory();
+end;
+
+procedure TFormProcessList.OpenSelectedModulesFromFiles1Click(Sender: TObject);
+begin
+  self.OpenSelectedModulesFromFiles();
 end;
 
 end.
