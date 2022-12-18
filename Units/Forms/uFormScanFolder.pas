@@ -33,19 +33,16 @@ type
     ButtonCancel: TSpeedButton;
     PanelBackground: TPanel;
     PanelCore: TPanel;
-    Shape1: TShape;
     PanelForm: TPanel;
     Label1: TLabel;
     EditDirectory: TButtonedEdit;
     PanelWarning: TPanel;
     Label4: TLabel;
     IconInfo: TVirtualImage;
-    PanelIcon: TPanel;
-    ImageIcon: TVirtualImage;
     CheckBoxRecursive: TCheckBox;
     CheckBoxDeepScan: TCheckBox;
     Label2: TLabel;
-    ButtonedEdit1: TButtonedEdit;
+    EditRegex: TButtonedEdit;
     procedure ButtonCancelClick(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure ButtonValidateClick(Sender: TObject);
@@ -91,7 +88,8 @@ begin
       TScanFilesThread.Create(
         EditDirectory.Text,
         CheckBoxDeepScan.Checked,
-        CheckBoxRecursive.Checked
+        CheckBoxRecursive.Checked,
+        EditRegex.Text
       )
     );
 

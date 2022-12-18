@@ -5,7 +5,7 @@ object FormScanFolder: TFormScanFolder
   BorderStyle = bsSingle
   Caption = 'Scan Folder'
   ClientHeight = 281
-  ClientWidth = 517
+  ClientWidth = 472
   Color = clWhite
   DoubleBuffered = True
   Font.Charset = DEFAULT_CHARSET
@@ -20,18 +20,18 @@ object FormScanFolder: TFormScanFolder
   object PanelBottom: TPanel
     Left = 0
     Top = 239
-    Width = 517
+    Width = 472
     Height = 42
     Align = alBottom
     BevelOuter = bvNone
     Color = 16119285
     ParentBackground = False
     TabOrder = 0
-    ExplicitTop = 153
+    ExplicitTop = 206
     ExplicitWidth = 503
     object ButtonValidate: TSpeedButton
       AlignWithMargins = True
-      Left = 423
+      Left = 378
       Top = 8
       Width = 90
       Height = 26
@@ -49,7 +49,7 @@ object FormScanFolder: TFormScanFolder
     end
     object ButtonCancel: TSpeedButton
       AlignWithMargins = True
-      Left = 329
+      Left = 284
       Top = 8
       Width = 90
       Height = 26
@@ -66,7 +66,7 @@ object FormScanFolder: TFormScanFolder
   object PanelBackground: TPanel
     Left = 0
     Top = 0
-    Width = 517
+    Width = 472
     Height = 239
     Align = alClient
     BevelOuter = bvNone
@@ -74,12 +74,12 @@ object FormScanFolder: TFormScanFolder
     ParentBackground = False
     TabOrder = 1
     ExplicitWidth = 503
-    ExplicitHeight = 153
+    ExplicitHeight = 206
     object PanelCore: TPanel
       AlignWithMargins = True
       Left = 8
       Top = 8
-      Width = 501
+      Width = 456
       Height = 223
       Margins.Left = 8
       Margins.Top = 8
@@ -91,40 +91,28 @@ object FormScanFolder: TFormScanFolder
       ParentBackground = False
       TabOrder = 0
       ExplicitWidth = 487
-      ExplicitHeight = 137
-      object Shape1: TShape
-        Left = 67
-        Top = 0
-        Width = 2
-        Height = 223
-        Align = alRight
-        Pen.Color = 15790320
-        ExplicitLeft = 32
-        ExplicitTop = 112
-        ExplicitHeight = 65
-      end
+      ExplicitHeight = 190
       object PanelForm: TPanel
         AlignWithMargins = True
-        Left = 77
+        Left = 8
         Top = 0
-        Width = 424
+        Width = 448
         Height = 223
         Margins.Left = 8
         Margins.Top = 0
         Margins.Right = 0
         Margins.Bottom = 0
-        Align = alRight
+        Align = alClient
         BevelOuter = bvNone
         Color = clWhite
         TabOrder = 0
-        ExplicitLeft = 78
-        ExplicitTop = 5
-        ExplicitHeight = 214
+        ExplicitWidth = 477
+        ExplicitHeight = 190
         object Label1: TLabel
           AlignWithMargins = True
           Left = 0
           Top = 8
-          Width = 424
+          Width = 448
           Height = 15
           Margins.Left = 0
           Margins.Top = 8
@@ -137,14 +125,13 @@ object FormScanFolder: TFormScanFolder
           Font.Name = 'Segoe UI'
           Font.Style = [fsBold]
           ParentFont = False
-          ExplicitLeft = -5
-          ExplicitTop = 5
+          ExplicitWidth = 74
         end
         object Label2: TLabel
           AlignWithMargins = True
           Left = 0
           Top = 57
-          Width = 424
+          Width = 448
           Height = 15
           Margins.Left = 0
           Margins.Top = 8
@@ -162,7 +149,7 @@ object FormScanFolder: TFormScanFolder
         object EditDirectory: TButtonedEdit
           Left = 0
           Top = 26
-          Width = 424
+          Width = 448
           Height = 23
           Align = alTop
           Images = FormMain.VirtualImageList
@@ -172,25 +159,26 @@ object FormScanFolder: TFormScanFolder
           RightButton.Visible = True
           TabOrder = 0
           OnRightButtonClick = EditDirectoryRightButtonClick
-          ExplicitTop = 23
+          ExplicitWidth = 477
         end
         object PanelWarning: TPanel
           Left = 0
           Top = 163
-          Width = 424
+          Width = 448
           Height = 60
           Align = alBottom
           AutoSize = True
           BevelOuter = bvNone
           ParentColor = True
           TabOrder = 1
-          ExplicitTop = 77
+          ExplicitTop = 130
+          ExplicitWidth = 477
           object Label4: TLabel
             AlignWithMargins = True
             Left = 20
-            Top = 0
-            Width = 404
-            Height = 60
+            Top = 15
+            Width = 428
+            Height = 45
             Margins.Left = 20
             Margins.Top = 0
             Margins.Right = 0
@@ -208,6 +196,8 @@ object FormScanFolder: TFormScanFolder
             Font.Style = []
             ParentFont = False
             WordWrap = True
+            ExplicitTop = 0
+            ExplicitWidth = 469
           end
           object IconInfo: TVirtualImage
             AlignWithMargins = True
@@ -226,7 +216,7 @@ object FormScanFolder: TFormScanFolder
           AlignWithMargins = True
           Left = 0
           Top = 108
-          Width = 424
+          Width = 448
           Height = 17
           Margins.Left = 0
           Margins.Top = 10
@@ -235,13 +225,13 @@ object FormScanFolder: TFormScanFolder
           Align = alTop
           Caption = 'Recursive Lookup'
           TabOrder = 2
-          ExplicitTop = 59
+          ExplicitWidth = 477
         end
         object CheckBoxDeepScan: TCheckBox
           AlignWithMargins = True
           Left = 0
           Top = 135
-          Width = 424
+          Width = 448
           Height = 17
           Margins.Left = 0
           Margins.Top = 10
@@ -250,12 +240,12 @@ object FormScanFolder: TFormScanFolder
           Align = alTop
           Caption = 'Deep Scan'
           TabOrder = 3
-          ExplicitTop = 86
+          ExplicitWidth = 477
         end
-        object ButtonedEdit1: TButtonedEdit
+        object EditRegex: TButtonedEdit
           Left = 0
           Top = 75
-          Width = 424
+          Width = 448
           Height = 23
           Align = alTop
           LeftButton.ImageName = 'folder-filled-new'
@@ -265,41 +255,7 @@ object FormScanFolder: TFormScanFolder
           RightButton.Visible = True
           TabOrder = 4
           OnRightButtonClick = EditDirectoryRightButtonClick
-          ExplicitLeft = -2
-          ExplicitTop = 72
-        end
-      end
-      object PanelIcon: TPanel
-        Left = 0
-        Top = 0
-        Width = 67
-        Height = 223
-        Align = alClient
-        BevelOuter = bvNone
-        ParentColor = True
-        TabOrder = 1
-        ExplicitWidth = 53
-        ExplicitHeight = 137
-        object ImageIcon: TVirtualImage
-          AlignWithMargins = True
-          Left = 4
-          Top = 8
-          Width = 59
-          Height = 64
-          Margins.Left = 4
-          Margins.Top = 8
-          Margins.Right = 4
-          Margins.Bottom = 8
-          Align = alTop
-          Center = True
-          ImageCollection = FormMain.ImageCollection
-          ImageWidth = 0
-          ImageHeight = 0
-          ImageIndex = 9
-          ImageName = 'folder-open-filled-fingerprint'
-          ExplicitLeft = -24
-          ExplicitTop = 0
-          ExplicitWidth = 67
+          ExplicitWidth = 477
         end
       end
     end

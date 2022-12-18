@@ -67,7 +67,7 @@ begin
         ///
 
         Synchronize(procedure begin
-          //FormMain.OnException(self, E);
+          FormMain.OnException(self, E);
         end);
       end;
     end;

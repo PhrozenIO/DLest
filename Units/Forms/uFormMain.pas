@@ -17,13 +17,24 @@
 {                                                                              }
 {******************************************************************************}
 
-// - Export to JSON
-// - Exception handler and logs
-// - Export Scanner Regex (in Scan Folder)
+// Dump module image (reconstructed)
+// Display info about current modules (list) : MD5, SHA1, Signed, COmpany etc..
+// Copy columns
+// Google search with "Library name" or "Library name" + "Export Name"
 
-// Export Json:
-  // - DLL Name, DLL Path, MD5, SHA1, SHA256, Export List
-
+(*
+ For Next Release (v2.0):
+  - Improved Tabs Auto Naming.
+  - Integrate future Unprotect.it API.
+  - Integrate CRC32 in Json Export.
+  - Integrate OpenAI for Library / API's description.
+  - Offer an option to disable Wow64 Redirection.
+  - Possibility to cancel export enumeration thread.
+  - More comprehensive PE Parser.
+  - Upload to VirusTotal.
+  - ARM Support.
+  - More logs.
+*)
 
 unit uFormMain;
 
@@ -34,7 +45,7 @@ uses
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, VirtualTrees, Vcl.ComCtrls, Vcl.ToolWin,
   Vcl.Menus, Vcl.VirtualImageList, System.ImageList, Vcl.ImgList,
   Vcl.BaseImageCollection, Vcl.ImageCollection, Winapi.ShellAPI,
-  Vcl.ExtCtrls, Generics.Collections;
+  Vcl.ExtCtrls, Generics.Collections, uFormLogs;
 
 type
   TFormMain = class(TForm)
@@ -59,6 +70,24 @@ type
     CloseActiveTab1: TMenuItem;
     CloseAllTabs1: TMenuItem;
     N3: TMenuItem;
+    N4: TMenuItem;
+    RenameActiveTab1: TMenuItem;
+    Logs1: TMenuItem;
+    ToolBar: TToolBar;
+    ToolOpen: TToolButton;
+    ToolOpenFolder: TToolButton;
+    ToolScan: TToolButton;
+    ToolButton3: TToolButton;
+    ToolOpenProcess: TToolButton;
+    ToolButton4: TToolButton;
+    ToolThreadManager: TToolButton;
+    ToolLogs: TToolButton;
+    ToolButton6: TToolButton;
+    ToolAbout: TToolButton;
+    ReloadasAdministrator1: TMenuItem;
+    N5: TMenuItem;
+    ToolButtonAdmin: TToolButton;
+    SeparatorAdmin: TToolButton;
     procedure FormCreate(Sender: TObject);
     procedure Open1Click(Sender: TObject);
     procedure OpenProcess1Click(Sender: TObject);
@@ -68,15 +97,36 @@ type
     procedure ScanFolder1Click(Sender: TObject);
     procedure CloseActiveTab1Click(Sender: TObject);
     procedure CloseAllTabs1Click(Sender: TObject);
+    procedure RenameActiveTab1Click(Sender: TObject);
+    procedure Logs1Click(Sender: TObject);
+    procedure About1Click(Sender: TObject);
+    procedure ToolOpenClick(Sender: TObject);
+    procedure ToolOpenFolderClick(Sender: TObject);
+    procedure ToolScanClick(Sender: TObject);
+    procedure ToolOpenProcessClick(Sender: TObject);
+    procedure ToolThreadManagerClick(Sender: TObject);
+    procedure ToolLogsClick(Sender: TObject);
+    procedure ToolAboutClick(Sender: TObject);
+    procedure ReloadasAdministrator1Click(Sender: TObject);
+    procedure ToolButtonAdminClick(Sender: TObject);
   private
     FFileInfo : TSHFileInfo;
 
     {@M}
     procedure CloseTab(const ATab : TTabSheet);
+
+    procedure WMDropFiles(var AMessage: TMessage); message WM_DROPFILES;
   public
     {@M}
     procedure CloseTabs();
     procedure CloseActiveTab();
+    procedure RenameActiveTab();
+
+    procedure OnException(Sender : TObject; E : Exception);
+    procedure Log(const AMessage : String; const Sender: TObject; const ALevel : TLogLevel);
+    procedure Warn(const AMessage : String; const Sender : TObject);
+
+    procedure ShowInformation(const AMessage : String);
   end;
 
 var
@@ -85,15 +135,105 @@ var
 implementation
 
 uses uEnumExportsThread, uFunctions, uFormProcessList, VCL.FileCtrl,
-  uFormThreadManager, uScanFilesThread, uFormScanFolder, uFrameList;
+  uFormThreadManager, uScanFilesThread, uFormScanFolder, uFrameList, uFormAbout,
+  uApplication, Winapi.ShlObj;
 
 {$R *.dfm}
+
+procedure TFormMain.ShowInformation(const AMessage : String);
+begin
+  MessageDlg(AMessage, mtInformation, [mbOk], 0);
+end;
+
+procedure TFormMain.Log(const AMessage : String; const Sender: TObject; const ALevel : TLogLevel);
+begin
+  FormLogs.Log(AMessage, Sender, ALevel);
+end;
+
+procedure TFormMain.Warn(const AMessage : String; const Sender : TObject);
+begin
+  Log(AMessage, Sender, llWarning);
+end;
+
+procedure TFormMain.OnException(Sender : TObject; E : Exception);
+begin
+  Log(E.Message, Sender, llException);
+end;
+
+procedure TFormMain.ReloadasAdministrator1Click(Sender: TObject);
+begin
+  if MessageDlg('You are about to close and reload application as administrator. Are you sure?', mtConfirmation, [mbYes, mbNo, mbCancel], 0) = ID_YES then begin
+    if RunAs(GetModuleName(0)) then
+      self.Close()
+    else
+      MessageDlg('Could not reload application as administrator.', mtError, [mbOk], 0);
+  end;
+end;
+
+procedure TFormMain.RenameActiveTab();
+var ATab     : TTabSheet;
+    ACaption : String;
+begin
+  ATab := Pages.ActivePage;
+  ///
+
+  if not Assigned(ATab) then
+    Exit();
+
+  if not InputQuery('Update Tab', 'Provide a new name', ACaption) then
+    Exit();
+
+  ///
+  ATab.Caption := ACaption;
+end;
+
+procedure TFormMain.WMDropFiles(var AMessage: TMessage);
+var i      : Integer;
+    ACount : Integer;
+    ALen   : Integer;
+    AFile  : String;
+    AFiles : TStringList;
+begin
+  try
+    ACount := DragQueryFile(AMessage.WParam, $FFFFFFFF, nil, 0);
+    ///
+
+    AFiles := TStringList.Create();
+    try
+      for i := 0 to ACount -1 do begin
+        ALen := DragQueryFile(AMessage.WParam, I, nil, 0) +1;
+
+        SetLength(AFile, ALen);
+
+        DragQueryFile(AMessage.WParam, I, PWideChar(AFile), ALen);
+
+        ///
+        AFiles.Add(AFile);
+      end;
+
+      if AFiles.Count > 0 then
+        FormThreadManager.AddWorkerAndStart(TEnumExportsThread.Create(
+          AFiles,
+          ExtractFilePath(AFiles.Strings[0])
+        ));
+
+    finally
+      FreeAndNil(AFiles);
+    end;
+  finally
+    DragFinish(AMessage.WParam);
+  end;
+end;
 
 procedure TFormMain.CloseTabs();
 var ATab  : TTabSheet;
     ATabs : TList<TTabSheet>;
     I     : Cardinal;
 begin
+  if MessageDlg('You are about to definitively close all tabs. All data will be lost. Are you sure?', mtConfirmation, [mbYes, mbNo, mbCancel], 0) <> ID_YES then
+    Exit();
+  ///
+
   ATabs := TList<TTabSheet>.Create();
   try
     for I := 0 to Pages.PageCount -1 do
@@ -106,9 +246,15 @@ begin
   end;
 end;
 
+procedure TFormMain.About1Click(Sender: TObject);
+begin
+  FormAbout.Show();
+end;
+
 procedure TFormMain.CloseActiveTab();
 begin
-  CloseTab(Pages.ActivePage);
+  if MessageDlg('You are about to definitively close current active tab. All data will be lost. Are you sure?', mtConfirmation, [mbYes, mbNo, mbCancel], 0) = ID_YES then
+    CloseTab(Pages.ActivePage);
 end;
 
 procedure TFormMain.CloseActiveTab1Click(Sender: TObject);
@@ -139,7 +285,8 @@ end;
 
 procedure TFormMain.Exit1Click(Sender: TObject);
 begin
-  self.Close();
+  if MessageDlg('You are about to terminate current application. All data will be lost. Are you sure?', mtConfirmation, [mbYes, mbNo, mbCancel], 0) = ID_YES then
+    self.Close();
 end;
 
 procedure TFormMain.FormCreate(Sender: TObject);
@@ -147,11 +294,41 @@ begin
   InitializeSystemIcons(ImageSystem, FFileInfo);
   ///
 
+
+  if Assigned(ChangeWindowMessageFilterEx) then
+    ChangeWindowMessageFilterEx(self.Handle, WM_DROPFILES, MSGFLT_ALLOW, nil);
+
+  ///
+  DragAcceptFiles(self.Handle, true);
+
+  ///
+  Application.OnException := OnException;
+
+  ///
+  self.Caption := Format('%s v%s (%s) - %s', [
+    APPLICATION_NAME,
+    APPLICATION_VERSION,
+    APPLICATION_ARCHITECTURE,
+    GetElevationLabel()
+  ]);
+
+  self.ReloadasAdministrator1.Visible := (Win32MajorVersion >= 6);
+
+  if self.ReloadasAdministrator1.Visible then
+    self.ReloadasAdministrator1.Visible := not IsUserAnAdmin();
+
+  self.ToolButtonAdmin.Visible := self.ReloadasAdministrator1.Visible;
+  self.SeparatorAdmin.Visible  := self.ReloadasAdministrator1.Visible;
 end;
 
 procedure TFormMain.hreadManager1Click(Sender: TObject);
 begin
   FormThreadManager.Show();
+end;
+
+procedure TFormMain.Logs1Click(Sender: TObject);
+begin
+  FormLogs.Show();
 end;
 
 procedure TFormMain.Open1Click(Sender: TObject);
@@ -186,9 +363,54 @@ begin
   FormProcessList.ShowModal();
 end;
 
+procedure TFormMain.RenameActiveTab1Click(Sender: TObject);
+begin
+  self.RenameActiveTab();
+end;
+
 procedure TFormMain.ScanFolder1Click(Sender: TObject);
 begin
   FormScanFolder.ShowModal();
+end;
+
+procedure TFormMain.ToolAboutClick(Sender: TObject);
+begin
+  self.About1.Click();
+end;
+
+procedure TFormMain.ToolButtonAdminClick(Sender: TObject);
+begin
+  self.ReloadasAdministrator1.Click();
+end;
+
+procedure TFormMain.ToolLogsClick(Sender: TObject);
+begin
+  self.Logs1.Click();
+end;
+
+procedure TFormMain.ToolOpenClick(Sender: TObject);
+begin
+  self.Open1.Click();
+end;
+
+procedure TFormMain.ToolOpenFolderClick(Sender: TObject);
+begin
+  self.OpenFolder1.Click();
+end;
+
+procedure TFormMain.ToolOpenProcessClick(Sender: TObject);
+begin
+  self.OpenProcess1.Click();
+end;
+
+procedure TFormMain.ToolScanClick(Sender: TObject);
+begin
+  self.ScanFolder1.Click();
+end;
+
+procedure TFormMain.ToolThreadManagerClick(Sender: TObject);
+begin
+  self.hreadManager1.Click();
 end;
 
 end.

@@ -5,7 +5,7 @@
         <FrameworkType>VCL</FrameworkType>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Debug</Config>
-        <Platform Condition="'$(Platform)'==''">Win32</Platform>
+        <Platform Condition="'$(Platform)'==''">Win64</Platform>
         <TargetedPlatforms>3</TargetedPlatforms>
         <AppType>Application</AppType>
         <MainSource>dlest.dpr</MainSource>
@@ -128,6 +128,8 @@
         <DCCReference Include="Units\Objects\uPortableExecutable.pas"/>
         <DCCReference Include="Units\Objects\uExceptions.pas"/>
         <DCCReference Include="Units\uGraphicUtils.pas"/>
+        <DCCReference Include="Libs\XSuperObject\XSuperObject.pas"/>
+        <DCCReference Include="Libs\XSuperObject\XSuperJSON.pas"/>
         <DCCReference Include="Units\Threads\Components\uWorkerThread.pas"/>
         <DCCReference Include="Units\Forms\uFormMain.pas">
             <Form>FormMain</Form>
@@ -156,6 +158,16 @@
             <Form>FormScanFolder</Form>
             <FormType>dfm</FormType>
         </DCCReference>
+        <DCCReference Include="Units\Forms\uFormLogs.pas">
+            <Form>FormLogs</Form>
+            <FormType>dfm</FormType>
+        </DCCReference>
+        <DCCReference Include="Units\Forms\uFormAbout.pas">
+            <Form>FormAbout</Form>
+        </DCCReference>
+        <DCCReference Include="Units\Threads\uExportExportsToJsonThread.pas"/>
+        <DCCReference Include="Units\uApplication.pas"/>
+        <DCCReference Include="Units\uTypes.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
@@ -185,6 +197,18 @@
                 <DeployFile LocalName="Win32\Debug\dlest.exe" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Win32">
                         <RemoteName>dlest.exe</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="Win64\Debug\dlest.exe" Configuration="Debug" Class="ProjectOutput">
+                    <Platform Name="Win64">
+                        <RemoteName>dlest.exe</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="Win64\Debug\dlest.rsm" Configuration="Debug" Class="DebugSymbols">
+                    <Platform Name="Win64">
+                        <RemoteName>dlest.rsm</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

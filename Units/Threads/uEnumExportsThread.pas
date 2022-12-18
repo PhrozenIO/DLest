@@ -45,9 +45,11 @@ type
     FMode          : TEnumExportsMode;
     FModules       : TList<Pointer>;
     FProcessId     : THandle;
+    FGroup         : Boolean;
 
     {@C}
     constructor Create(); overload;
+    function ProcessImage(const AImageFile : String; const APEParser : TPortableExecutable) : UInt64;
   protected
     {@M}
     procedure ThreadExecute(); override;
@@ -65,60 +67,96 @@ implementation
 
 uses VirtualTrees, uFormMain, uFunctions, uConstants, uExceptions;
 
+{ TEnumExportsThread.ProcessImage }
+function TEnumExportsThread.ProcessImage(const AImageFile : String; const APEParser : TPortableExecutable) : UInt64;
+var AExport     : TExport;
+    pNode       : PVirtualNode;
+    pData       : PTreeData;
+    pParentNode : PVirtualNode;
+begin
+  result := 0;
+  ///
+
+  if not Assigned(APEParser) then
+    Exit();
+  ///
+
+  try
+    if FGroup and (APEParser.ExportList.Count > 0) then begin
+      Synchronize(procedure begin
+        pParentNode := FFrame.VST.AddChild(nil);
+        pData := pParentNode.GetData;
+      end);
+
+      pData^.ImagePath   := AImageFile;
+      pData^.ExportEntry := nil;
+      pData^.StateIndex  := SystemFileIcon(AImageFile);
+      pData^.ExportCount := APEParser.ExportList.Count;
+    end else
+      pParentNode := nil;
+    ///
+
+    if APEParser.ExportList.Count = 0 then
+      Queue(procedure begin
+        FormMain.Warn(Format('No exports so far for file "%s".', [AImageFile]), self);
+      end)
+    else begin
+      for AExport in APEParser.ExportList do begin
+        if Terminated then
+          break;
+        ///
+
+        Synchronize(procedure begin
+          pNode := FFrame.VST.AddChild(pParentNode);
+          pData := pNode.GetData;
+        end);
+
+        pData^.ImagePath   := AImageFile;
+        pData^.ExportEntry := TExport.Create(AExport);
+        pData^.StateIndex  := -1;
+        pData^.ExportCount := 0;
+      end;
+
+      ///
+      result := APEParser.ExportList.Count;
+    end;
+  finally
+    Synchronize(procedure begin
+      FFrame.ProgressBar.Position := FFrame.ProgressBar.Position +1;
+    end);
+  end;
+end;
+
 { TEnumExportsThread.ThreadExecute }
 procedure TEnumExportsThread.ThreadExecute();
 var APEParser     : TPortableExecutable;
     AImageFile    : String;
-    pNode         : PVirtualNode;
-    pData         : PTreeData;
-    AExport       : TExport;
-    AGroup        : Boolean;
-    pParentNode   : PVirtualNode;
     ATotalExports : UInt64;
     pModule       : Pointer;
     hProcess      : THandle;
 
-    procedure AddParent();
+    procedure RaiseException(const AImageFile : String; const E : Exception);
     begin
-      if AGroup and (APEParser.ExportList.Count > 0) then begin
-        Synchronize(procedure begin
-          pParentNode := FFrame.VST.AddChild(nil);
-          pData := pParentNode.GetData;
-        end);
+      E.Message := Format('Could not parse:"%s", error:"%s"', [AImageFile, E.Message]);
+      ///
 
-        pData^.ImagePath   := AImageFile;
-        pData^.ExportEntry := nil;
-        pData^.StateIndex  := SystemFileIcon(AImageFile);
-        pData^.ExportCount := APEParser.ExportList.Count;
-      end else
-        pParentNode := nil;
-    end;
-
-    procedure AddExport();
-    begin
-      Synchronize(procedure begin
-        pNode := FFrame.VST.AddChild(pParentNode);
-        pData := pNode.GetData;
+      Queue(procedure begin
+        FormMain.OnException(self, E);
       end);
-
-      pData^.ImagePath   := AImageFile;
-      pData^.ExportEntry := TExport.Create(AExport);
-      pData^.StateIndex  := -1;
-      pData^.ExportCount := 0;
     end;
 
 begin
   try
     Synchronize(procedure begin
-      FFrame.VST.BeginUpdate();
+      FFrame.BeginUpdate();
 
       FFrame.ProgressBar.Max := FImageFiles.Count + FModules.Count;
       FFrame.ProgressBar.Visible :=  FFrame.ProgressBar.Max > 1;
     end);
 
-    AGroup := (FImageFiles.Count > 1) or (FModules.Count > 1);
+    FGroup := (FImageFiles.Count > 1) or (FModules.Count > 1);
     Synchronize(procedure begin
-      FFrame.Grouped := AGroup;
+      FFrame.Grouped := FGroup;
     end);
 
     ATotalExports := 0;
@@ -131,28 +169,14 @@ begin
           try
             APEParser := TPortableExecutable.CreateFromFile(AImageFile);
             try
-              AddParent();
-
-              for AExport in APEParser.ExportList do begin
-                if Terminated then
-                  break;
-                ///
-
-                AddExport();
-              end;
-
-              ///
-              Inc(ATotalExports, APEParser.ExportList.Count);
+              Inc(ATotalExports, ProcessImage(AImageFile, APEParser));
             finally
-              Synchronize(procedure begin
-                FFrame.ProgressBar.Position := FFrame.ProgressBar.Position +1;
-              end);
-
               if Assigned(APEParser) then
                 FreeAndNil(APEParser);
             end;
           except
-            // TODO
+            on E : Exception do
+              RaiseException(AImageFile, E);
           end;
         end;
       end;
@@ -174,30 +198,14 @@ begin
 
               APEParser := TPortableExecutable.CreateFromMemory(hProcess, pModule);
               try
-                AddParent();
-
-                for AExport in APEParser.ExportList do begin
-                  if Terminated then
-                    break;
-                  ///
-
-                  AddExport();
-                end;
-
-                ///
-                Inc(ATotalExports, APEParser.ExportList.Count);
+                Inc(ATotalExports, ProcessImage(AImageFile, APEParser));
               finally
-                Synchronize(procedure begin
-                  FFrame.ProgressBar.Position := FFrame.ProgressBar.Position +1;
-                end);
-
                 if Assigned(APEParser) then
                   FreeAndNil(APEParser);
               end;
             except
-              on E : Exception do begin
-                // TODO
-              end;
+              on E : Exception do
+                RaiseException(AImageFile, E);
             end;
           end;
         finally
@@ -214,7 +222,7 @@ begin
 
       FFrame.ProgressBar.Visible := False;
 
-      FFrame.VST.EndUpdate();
+      FFrame.EndUpdate();
     end);
   end;
 end;

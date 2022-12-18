@@ -27,6 +27,7 @@ uses System.Classes,
      VCL.Controls,
      Winapi.PsAPI,
      Winapi.ShellAPI,
+     Winapi.ShlObj,
      uWorkerThread;
 
 type
@@ -47,14 +48,102 @@ function GetImagePathFromProcessId(const AProcessID : Cardinal) : String;
 function FormatSize(const ASize : Int64) : string;
 function DELF_GetModuleFileNameEx(const AProcessId : Cardinal; const hModule : THandle) : String; overload;
 function DELF_GetModuleFileNameEx(const hProcess, hModule : THandle) : String; overload;
-procedure EnumFilesInDirectory(var AFiles : TStringList; ADirectory : String; const AWildCard : String = '*.*'; const ARecursive : Boolean = False; const AValidatePE : Boolean = False; const AThread : TWorkerThread = nil);
+procedure EnumFilesInDirectory(var AFiles : TStringList; ADirectory : String; const AWildCard : String = '*.*'; const ARecursive : Boolean = False; const AThread : TWorkerThread = nil);
 function FastPECheck(const AFilePath : String) : Boolean;
+procedure Open(const AOpenCommand : String);
+procedure FileProperties(const AFileName : String);
+function ShowFileOnExplorer(const AFileName : String) : Boolean;
+procedure NTSetPrivilege(const APrivilegeName: string; const AEnabled: Boolean);
+function GetElevationLabel() : String;
+function RunAs(const AFileName : String; const AArgument : String = ''): Boolean;
 
 const PROCESS_QUERY_LIMITED_INFORMATION = $1000;
+      MSGFLT_ALLOW                      = 1;
+
+var ChangeWindowMessageFilterEx : function(hwnd : THandle; message : UINT; action : DWORD; pChangeFilterStruct : Pointer) : BOOL; stdcall = nil;
 
 implementation
 
 uses System.Math, System.IOUtils, uExceptions, System.Masks;
+
+{ _.NTSetPrivilege }
+procedure NTSetPrivilege(const APrivilegeName: string; const AEnabled: Boolean);
+var AProcessToken   : THandle;
+    ATokenPrivilege : TOKEN_PRIVILEGES;
+begin
+  if not OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES or TOKEN_QUERY, AProcessToken) then
+    raise EWindowsException.Create('OpenProcessToken');
+
+  try
+    if not LookupPrivilegeValue(nil, PChar(APrivilegeName), ATokenPrivilege.Privileges[0].Luid) then
+      raise EWindowsException.Create('LookupPrivilegeValue');
+
+    ATokenPrivilege.PrivilegeCount := 1;
+
+    case AEnabled of
+      True  : ATokenPrivilege.Privileges[0].Attributes  := SE_PRIVILEGE_ENABLED;
+      False : ATokenPrivilege.Privileges[0].Attributes  := 0;
+    end;
+
+    if not AdjustTokenPrivileges(
+                                  AProcessToken,
+                                  False,
+                                  ATokenPrivilege,
+                                  SizeOf(TOKEN_PRIVILEGES),
+                                  PTokenPrivileges(nil)^,
+                                  PDWORD(nil)^
+    ) then
+      raise EWindowsException.Create('AdjustTokenPrivileges');
+  finally
+    CloseHandle(AProcessToken);
+  end;
+end;
+
+{ _.ShowFileOnExplorer }
+function ShowFileOnExplorer(const AFileName : String) : Boolean;
+var AItemIDList : PItemIDList;
+begin
+  result := False;
+  ///
+
+  if not FileExists(AFileName) then
+    Exit();
+  ///
+
+
+  AItemIDList := ILCreateFromPath(PWideChar(AFileName));
+  if AItemIDList = nil then
+    Exit();
+  try
+    result := (SHOpenFolderAndSelectItems(AItemIDList, 0, nil, 0) = S_OK);
+  finally
+    ILFree(AItemIDList);
+  end;
+
+  if not result then
+    Open(ExtractFilePath(AFileName));
+end;
+
+{ _.FileProperties }
+procedure FileProperties(const AFileName : String);
+var AShellExecInfo : TShellExecuteInfo;
+begin
+  ZeroMemory(@AShellExecInfo, SizeOf(TShellExecuteInfo));
+  ///
+
+  AShellExecInfo.cbSize := SizeOf(AShellExecInfo);
+  AShellExecInfo.lpFile := PWideChar(AFileName);
+  AShellExecInfo.lpVerb := 'properties';
+  AShellExecInfo.fMask  := SEE_MASK_INVOKEIDLIST;
+
+  ShellExecuteEx(@AShellExecInfo);
+end;
+
+{ _.Open }
+procedure Open(const AOpenCommand : String);
+begin
+  ShellExecute(0, 'open', PWideChar(AOpenCommand), nil, nil, SW_SHOW);
+end;
 
 { _.GetWindowsDirectory }
 function GetWindowsDirectory() : string;
@@ -286,7 +375,7 @@ begin
 end;
 
 { _.EnumFilesInDirectory }
-procedure EnumFilesInDirectory(var AFiles : TStringList; ADirectory : String; const AWildCard : String = '*.*'; const ARecursive : Boolean = False; const AValidatePE : Boolean = False; const AThread : TWorkerThread = nil);
+procedure EnumFilesInDirectory(var AFiles : TStringList; ADirectory : String; const AWildCard : String = '*.*'; const ARecursive : Boolean = False; const AThread : TWorkerThread = nil);
 var ASearch      : TSearchRec;
     AFilePath    : String;
     AIsDirectory : Boolean;
@@ -382,5 +471,43 @@ begin
     CloseHandle(hFile);
   end;
 end;
+
+{ _.GetElevationLabel }
+function GetElevationLabel() : String;
+begin
+  result := 'Unprivileged';
+  ///
+
+  if Win32MajorVersion >= 6 then begin
+    if IsUserAnAdmin() then
+      result := 'Administrator'
+  end;
+end;
+
+{ _.RunAs }
+function RunAs(const AFileName : String; const AArgument : String = ''): Boolean;
+var AOperation : String;
+begin
+  if Win32MajorVersion >= 6 then
+    AOperation := 'RunAs'
+  else
+    AOperation := 'open';
+
+  ///
+  result := NOT (ShellExecute(
+                                0,
+                                PChar(AOperation),
+                                PChar(AFileName),
+                                PChar(AArgument),
+                                nil,
+                                SW_SHOW
+  ) <= 32);
+end;
+
+initialization
+  ChangeWindowMessageFilterEx := GetProcAddress(GetModuleHandle('user32.dll'), 'ChangeWindowMessageFilterEx');
+
+finalization
+  ChangeWindowMessageFilterEx := nil;
 
 end.

@@ -17,6 +17,7 @@ object FormTask: TFormTask
   Position = poOwnerFormCenter
   OnClose = FormClose
   OnKeyDown = FormKeyDown
+  OnShow = FormShow
   TextHeight = 15
   object PanelIcon: TPanel
     Left = 0

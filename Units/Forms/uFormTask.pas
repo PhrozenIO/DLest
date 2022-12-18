@@ -38,6 +38,7 @@ type
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure ButtonCancelClick(Sender: TObject);
+    procedure FormShow(Sender: TObject);
   private
     FThread : TWorkerThread;
   public
@@ -75,6 +76,9 @@ end;
 procedure TFormTask.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
   Action := caFree;
+
+  ///
+  FormMain.Enabled := True;
 end;
 
 procedure TFormTask.FormKeyDown(Sender: TObject; var Key: Word;
@@ -83,6 +87,11 @@ begin
   case Key of
     27 : ButtonCancel.Click;
   end;
+end;
+
+procedure TFormTask.FormShow(Sender: TObject);
+begin
+  FormMain.Enabled := False; // Fake Modal
 end;
 
 end.

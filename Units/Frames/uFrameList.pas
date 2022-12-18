@@ -25,7 +25,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, VirtualTrees,
   Vcl.ExtCtrls, OMultiPanel, uPortableExecutable, Vcl.Menus, Vcl.ComCtrls,
-  Vcl.StdCtrls, Vcl.Buttons;
+  Vcl.StdCtrls, Vcl.Buttons, uTypes;
 
 type
   TTreeData = record
@@ -46,6 +46,15 @@ type
     PanelSearch: TPanel;
     EditRegex: TButtonedEdit;
     VST: TVirtualStringTree;
+    RenameTab1: TMenuItem;
+    N2: TMenuItem;
+    ShowSelectedFileProperties1: TMenuItem;
+    ShowSelectedFileOnExplorer1: TMenuItem;
+    LoadSelectedFileinNewTab1: TMenuItem;
+    N3: TMenuItem;
+    ExportEntireListToJson1: TMenuItem;
+    ExportVisibleFilteredItemsToJson1: TMenuItem;
+    ExportSelectedItemsToJson1: TMenuItem;
     procedure VSTChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode;
@@ -68,15 +77,27 @@ type
     procedure EditRegexChange(Sender: TObject);
     procedure EditRegexRightButtonClick(Sender: TObject);
     procedure CloseTab1Click(Sender: TObject);
+    procedure RenameTab1Click(Sender: TObject);
+    procedure ShowSelectedFileProperties1Click(Sender: TObject);
+    procedure ShowSelectedFileOnExplorer1Click(Sender: TObject);
+    procedure LoadSelectedFileinNewTab1Click(Sender: TObject);
+    procedure ExportEntireListToJson1Click(Sender: TObject);
+    procedure ExportVisibleFilteredItemsToJson1Click(Sender: TObject);
+    procedure ExportSelectedItemsToJson1Click(Sender: TObject);
   private
     FGrouped      : Boolean;
     FTotalExports : UInt64;
 
     {@M}
     procedure FilterList(const AReset : Boolean);
+    procedure ExportToJson(const AMode : TJSONExportMode);
   public
     {@C}
     constructor Create(AOwner : TComponent); override;
+
+    {@M}
+    procedure BeginUpdate();
+    procedure EndUpdate();
 
     {@G/S}
     property Grouped      : Boolean read FGrouped      write FGrouped;
@@ -85,9 +106,57 @@ type
 
 implementation
 
-uses uFormMain, uConstants, System.Math, uGraphicUtils, System.RegularExpressions;
+uses uFormMain, uConstants, System.Math, uGraphicUtils, System.RegularExpressions,
+     uFunctions, uFormThreadManager, uEnumExportsThread, uExportExportsToJsonThread,
+     VCL.FileCtrl;
 
 {$R *.dfm}
+
+procedure TFrameList.ExportEntireListToJson1Click(Sender: TObject);
+begin
+  self.ExportToJson(jemAll);
+end;
+
+procedure TFrameList.ExportSelectedItemsToJson1Click(Sender: TObject);
+begin
+  self.ExportToJson(jemSelected);
+end;
+
+procedure TFrameList.ExportToJson(const AMode : TJSONExportMode);
+var ADirectory : String;
+begin
+  if not SelectDirectory('Select destination', '', ADirectory, [sdShowShares]) then
+    Exit();
+  ///
+
+  FormThreadManager.AddWorkerAndStart(
+    TExportExportsToJsonThread.Create(self, ADirectory, AMode)
+  );
+end;
+
+procedure TFrameList.ExportVisibleFilteredItemsToJson1Click(Sender: TObject);
+begin
+  self.ExportToJson(jemVisible);
+end;
+
+procedure TFrameList.BeginUpdate();
+begin
+  EditRegex.Enabled := False;
+  VST.Enabled := False;
+  FormMain.Pages.PopupMenu := nil;
+
+  VST.BeginUpdate();
+end;
+
+procedure TFrameList.EndUpdate();
+begin
+  FormMain.Pages.PopupMenu := FormMain.PopupTabs;
+
+  EditRegex.Enabled := True;
+  VST.Enabled := True;
+
+  VST.EndUpdate();
+end;
 
 procedure TFrameList.FilterList(const AReset : Boolean);
 var pNode : PVirtualNode;
@@ -182,8 +251,30 @@ begin
   end;
 
   ///
-  if AReset then
+  if AReset then begin
     EditRegex.RightButton.Visible := False;
+
+    EditRegex.OnChange := nil; // Dirty
+    try
+      EditRegex.Clear();
+    finally
+      EditRegex.OnChange := self.EditRegexChange; // Dirty
+    end;
+  end;
+end;
+
+procedure TFrameList.LoadSelectedFileinNewTab1Click(Sender: TObject);
+var pData : PTreeData;
+begin
+  if not Assigned(VST.FocusedNode) then
+    Exit();
+  ///
+
+  pData := VST.FocusedNode.GetData;
+
+  FormThreadManager.AddWorkerAndStart(TEnumExportsThread.Create(
+    pData^.ImagePath
+  ));
 end;
 
 constructor TFrameList.Create(AOwner: TComponent);
@@ -227,8 +318,40 @@ end;
 
 procedure TFrameList.PopupMenuPopup(Sender: TObject);
 begin
-  self.ExpandAll1.Visible   := FGrouped;
-  self.CollapseAll1.Visible := FGrouped;
+  self.ExpandAll1.Visible                  := FGrouped;
+  self.CollapseAll1.Visible                := FGrouped;
+  self.ShowSelectedFileProperties1.Enabled := VST.SelectedCount = 1;
+  self.ShowSelectedFileOnExplorer1.Enabled := self.ShowSelectedFileProperties1.Enabled;
+  self.LoadSelectedFileinNewTab1.Enabled   := self.ShowSelectedFileProperties1.Enabled;
+end;
+
+procedure TFrameList.RenameTab1Click(Sender: TObject);
+begin
+  FormMain.RenameActiveTab();
+end;
+
+procedure TFrameList.ShowSelectedFileOnExplorer1Click(Sender: TObject);
+var pData : PTreeData;
+begin
+  if not Assigned(VST.FocusedNode) then
+    Exit();
+  ///
+
+  pData := VST.FocusedNode.GetData;
+
+  ShowFileOnExplorer(pData^.ImagePath);
+end;
+
+procedure TFrameList.ShowSelectedFileProperties1Click(Sender: TObject);
+var pData : PTreeData;
+begin
+  if not Assigned(VST.FocusedNode) then
+    Exit();
+  ///
+
+  pData := VST.FocusedNode.GetData;
+
+  FileProperties(pData^.ImagePath);
 end;
 
 procedure TFrameList.VSTBeforeCellPaint(Sender: TBaseVirtualTree;
@@ -385,7 +508,10 @@ begin
     end;
   end else begin
     case Column of
-      0 : CellText := pData^.ImagePath;
+      0 : CellText := Format('(%d) %s', [
+        pData^.ExportCount,
+        pData^.ImagePath
+      ]);
     end;
   end;
 end;

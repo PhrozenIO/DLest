@@ -30,35 +30,43 @@ uses System.Classes,
 type
   TScanFilesThread = class(TWorkerThread)
   private
-    FDirectory : String;
-    FRecursive : Boolean;
-    FDeepScan  : Boolean;
+    FDirectory   : String;
+    FRecursive   : Boolean;
+    FDeepScan    : Boolean;
+    FFilterRegex : String;
 
-    FForm      : TForm;
+    FForm        : TForm;
   protected
     {@M}
     procedure ThreadExecute(); override;
 
   public
     {@C}
-    constructor Create(const ADirectory : String; const ADeepScan : Boolean = False; const ARecursive : Boolean = False); overload;
+    constructor Create(const ADirectory : String; const ADeepScan : Boolean = False; const ARecursive : Boolean = False; const AFilterRegex : String = ''); overload;
   end;
 
 implementation
 
-uses uFormMain, uFormTask, uFunctions, uFormThreadManager, uEnumExportsThread;
+uses uFormMain, uFormTask, uFunctions, uFormThreadManager, uEnumExportsThread,
+     uPortableExecutable, System.RegularExpressions;
 
 { TScanFilesThread.ThreadExecute }
 procedure TScanFilesThread.ThreadExecute();
-var AFiles    : TStringList;
-    AWildCard : String;
-    ACaption  : String;
+var AFiles         : TStringList;
+    AFilteredFiles : TStringList;
+    AWildCard      : String;
+    ACaption       : String;
+    AFile          : String;
+    AValidated     : Boolean;
+    AParser        : TPortableExecutable;
+    AExport        : TExport;
 begin
   Queue(procedure begin
     FForm.Show();
   end);
   try
     AFiles := TStringList.Create();
+    AFilteredFiles := TStringList.Create();
     try
       if FDeepScan then
         AWildCard := '*.*'
@@ -70,14 +78,55 @@ begin
       if FRecursive then
         ACaption := '+' + ACaption;
 
-      EnumFilesInDirectory(AFiles, FDirectory, AWildCard, FRecursive, FDeepScan, self);
+      EnumFilesInDirectory(AFiles, FDirectory, AWildCard, FRecursive, self);
+
+      if FDeepScan or (not FFilterRegex.IsEmpty) then begin
+        for AFile in AFiles do begin
+          // Deep Scan
+          if FDeepScan then begin
+            if not FastPECheck(AFile) then
+              continue;
+          end;
+
+          // Regex Filter Search
+          if not FFilterRegex.IsEmpty then begin
+            try
+              AValidated := False;
+              ///
+
+              AParser := TPortableExecutable.CreateFromFile(AFile);
+              try
+                for AExport in AParser.ExportList do begin
+                  if TRegEx.IsMatch(AExport.Name, FFilterRegex) then begin
+                    AValidated := True;
+
+                    break;
+                  end;
+                end;
+              finally
+                if Assigned(AParser) then
+                  FreeAndNil(AParser);
+              end;
+            except
+              AValidated := False;
+            end;
+
+            if not AValidated then
+              continue;
+          end;
+
+          ///
+          AFilteredFiles.Add(AFile);
+        end;
+      end else
+        AFilteredFiles.Assign(AFiles);
 
       Synchronize(procedure begin
-        FormThreadManager.AddWorkerAndStart(TEnumExportsThread.Create(AFiles, ACaption));
+        FormThreadManager.AddWorkerAndStart(TEnumExportsThread.Create(AFilteredFiles, ACaption));
       end);
     finally
-      if Assigned(AFiles) then
-        FreeAndNil(AFiles);
+      FreeAndNil(AFilteredFiles);
+      FreeAndNil(AFiles);
     end;
   finally
     Queue(procedure begin
@@ -87,14 +136,15 @@ begin
 end;
 
 { TScanFilesThread.Create }
-constructor TScanFilesThread.Create(const ADirectory : String; const ADeepScan : Boolean = False; const ARecursive : Boolean = False);
+constructor TScanFilesThread.Create(const ADirectory : String; const ADeepScan : Boolean = False; const ARecursive : Boolean = False; const AFilterRegex : String = '');
 begin
   inherited Create();
   ///
 
-  FDirectory := IncludeTrailingPathDelimiter(ADirectory);
-  FRecursive := ARecursive;
-  FDeepScan  := ADeepScan;
+  FDirectory   := IncludeTrailingPathDelimiter(ADirectory);
+  FRecursive   := ARecursive;
+  FDeepScan    := ADeepScan;
+  FFilterRegex := AFilterRegex.Trim();
 
   FForm := TFormTask.Create(FormMain, self);
 end;

@@ -24,6 +24,8 @@ uses
   uPortableExecutable in 'Units\Objects\uPortableExecutable.pas',
   uExceptions in 'Units\Objects\uExceptions.pas',
   uGraphicUtils in 'Units\uGraphicUtils.pas',
+  XSuperObject in 'Libs\XSuperObject\XSuperObject.pas',
+  XSuperJSON in 'Libs\XSuperObject\XSuperJSON.pas',
   uWorkerThread in 'Units\Threads\Components\uWorkerThread.pas',
   uFormMain in 'Units\Forms\uFormMain.pas' {FormMain},
   uFrameList in 'Units\Frames\uFrameList.pas' {FrameList: TFrame},
@@ -36,12 +38,20 @@ uses
   uEnumModulesThread in 'Units\Threads\uEnumModulesThread.pas',
   uScanFilesThread in 'Units\Threads\uScanFilesThread.pas',
   uFormTask in 'Units\Forms\uFormTask.pas' {FormTask},
-  uFormScanFolder in 'Units\Forms\uFormScanFolder.pas' {FormScanFolder};
+  uFormScanFolder in 'Units\Forms\uFormScanFolder.pas' {FormScanFolder},
+  uFormLogs in 'Units\Forms\uFormLogs.pas' {FormLogs},
+  uFormAbout in 'Units\Forms\uFormAbout.pas' {FormAbout},
+  uExportExportsToJsonThread in 'Units\Threads\uExportExportsToJsonThread.pas',
+  uApplication in 'Units\uApplication.pas',
+  uTypes in 'Units\uTypes.pas';
 
 {$R *.res}
 
 begin
   isMultiThread := True;
+
+  NTSetPrivilege('SeDebugPrivilege', True);
+  ///
 
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
@@ -49,5 +59,7 @@ begin
   Application.CreateForm(TFormProcessList, FormProcessList);
   Application.CreateForm(TFormThreadManager, FormThreadManager);
   Application.CreateForm(TFormScanFolder, FormScanFolder);
+  Application.CreateForm(TFormLogs, FormLogs);
+  Application.CreateForm(TFormAbout, FormAbout);
   Application.Run;
 end.

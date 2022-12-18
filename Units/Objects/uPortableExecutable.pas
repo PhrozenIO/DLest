@@ -23,7 +23,8 @@ interface
 
 uses Winapi.Windows,
      System.Classes,
-     Generics.Collections;
+     Generics.Collections,
+     XSuperObject;
 
 type
   TPEHeaderSectionNature = (
@@ -78,6 +79,7 @@ type
     {@M}
     constructor Create(); overload;
     constructor Create(const AExport : TExport); overload;
+    function ToJson() : ISuperObject;
 
     {@M}
     procedure Assign(ASource : TPersistent); override;
@@ -207,6 +209,7 @@ var AOffset              : UInt64;
     ASectionHeaderOffset : UInt64;
     AExport              : TExport;
     AOrdinal             : Word;
+    ANameOffset          : UInt64;
 
   procedure Read(pBuffer : Pointer; const ABufferSize : UInt64; var ASavedOffset : UInt64; const AForwardOffset : Boolean = False); overload;
   var ABytesRead  : Cardinal;
@@ -421,9 +424,11 @@ begin
         FImageExportDirectory.AddressOfNames + (I * SizeOf(Cardinal))
       );
 
-      Read(@AOffset, SizeOf(Cardinal), False);
+      ZeroMemory(@ANameOffset, SizeOf(Cardinal));
 
-      AOffset := SectionRVAToFileOffset(AOffset);
+      Read(@ANameOffset, SizeOf(Cardinal), False);
+
+      AOffset := SectionRVAToFileOffset(ANameOffset);
 
       if AOffset > 0 then
         AExport.Name := ReadString();
@@ -457,6 +462,7 @@ begin
 
   FParseFrom := pfFile;
 
+// TODO In Option
 //  if Assigned(Wow64DisableWow64FsRedirection) then
 //    Wow64DisableWow64FsRedirection(AOldWow64RedirectionValue);
 //  try
@@ -753,6 +759,22 @@ begin
     FForwardName     := TExport(ASource).ForwardName;
   end else
     inherited Assign(ASource);
+end;
+
+{ TExport.ToJson }
+function TExport.ToJson() : ISuperObject;
+begin
+  result := SO();
+  ///
+
+  result.I['ordinal']       := FOrdinal;
+  result.S['relative_addr'] := Format('0x%p', [Pointer(FRelativeAddress)]);
+  result.S['address']       := Format('0x%p', [Pointer(FAddress)]);
+  result.S['name']          := FName;
+  result.B['forwarded']     := FForwarded;
+
+  if FForwarded then
+    result.S['forward_name'] := FForwardName;
 end;
 
 initialization

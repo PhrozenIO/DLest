@@ -11,19 +11,18 @@ object FrameList: TFrameList
   object ProgressBar: TProgressBar
     AlignWithMargins = True
     Left = 4
-    Top = 4
+    Top = 497
     Width = 862
     Height = 10
     Margins.Left = 4
     Margins.Top = 4
     Margins.Right = 4
     Margins.Bottom = 4
-    Align = alTop
+    Align = alBottom
     Smooth = True
     MarqueeInterval = 6
     TabOrder = 0
     Visible = False
-    ExplicitTop = 522
   end
   object PanelSearch: TPanel
     AlignWithMargins = True
@@ -40,7 +39,6 @@ object FrameList: TFrameList
     Color = 15790320
     ParentBackground = False
     TabOrder = 1
-    ExplicitTop = 340
     object EditRegex: TButtonedEdit
       AlignWithMargins = True
       Left = 1
@@ -56,8 +54,8 @@ object FrameList: TFrameList
       Images = FormMain.VirtualImageList
       LeftButton.ImageIndex = 11
       LeftButton.ImageName = 'symbol-cancel'
-      RightButton.ImageIndex = 12
-      RightButton.ImageName = 'cleanup'
+      RightButton.ImageIndex = 11
+      RightButton.ImageName = 'symbol-cancel'
       TabOrder = 0
       OnChange = EditRegexChange
       OnRightButtonClick = EditRegexRightButtonClick
@@ -65,7 +63,7 @@ object FrameList: TFrameList
   end
   object VST: TVirtualStringTree
     Left = 0
-    Top = 18
+    Top = 0
     Width = 870
     Height = 493
     Margins.Left = 8
@@ -111,7 +109,6 @@ object FrameList: TFrameList
     OnGetNodeDataSize = VSTGetNodeDataSize
     Touch.InteractiveGestures = [igPan, igPressAndTap]
     Touch.InteractiveGestureOptions = [igoPanSingleFingerHorizontal, igoPanSingleFingerVertical, igoPanInertia, igoPanGutter, igoParentPassthrough]
-    ExplicitTop = 8
     Columns = <
       item
         Position = 0
@@ -121,12 +118,12 @@ object FrameList: TFrameList
       item
         Position = 1
         Text = 'Address'
-        Width = 120
+        Width = 140
       end
       item
         Position = 2
         Text = 'Relative Address'
-        Width = 120
+        Width = 140
       end
       item
         Position = 3
@@ -154,8 +151,45 @@ object FrameList: TFrameList
     object N1: TMenuItem
       Caption = '-'
     end
+    object ShowSelectedFileProperties1: TMenuItem
+      Caption = 'Show Selected File Properties'
+      OnClick = ShowSelectedFileProperties1Click
+    end
+    object ShowSelectedFileOnExplorer1: TMenuItem
+      Caption = 'Show Selected File On Explorer'
+      OnClick = ShowSelectedFileOnExplorer1Click
+    end
+    object LoadSelectedFileinNewTab1: TMenuItem
+      Caption = 'Load Selected File In New Tab'
+      OnClick = LoadSelectedFileinNewTab1Click
+    end
+    object N3: TMenuItem
+      Caption = '-'
+    end
+    object ExportEntireListToJson1: TMenuItem
+      Caption = 'Export Entire List To Json'
+      ShortCut = 16467
+      OnClick = ExportEntireListToJson1Click
+    end
+    object ExportVisibleFilteredItemsToJson1: TMenuItem
+      Caption = 'Export Visible (Filtered) Items To Json'
+      OnClick = ExportVisibleFilteredItemsToJson1Click
+    end
+    object ExportSelectedItemsToJson1: TMenuItem
+      Caption = 'Export Selected Items To Json'
+      OnClick = ExportSelectedItemsToJson1Click
+    end
+    object N2: TMenuItem
+      Caption = '-'
+    end
+    object RenameTab1: TMenuItem
+      Caption = 'Rename Tab'
+      ShortCut = 16466
+      OnClick = RenameTab1Click
+    end
     object CloseTab1: TMenuItem
       Caption = 'Close Tab'
+      ShortCut = 16472
       OnClick = CloseTab1Click
     end
   end
