@@ -140,6 +140,17 @@ object FrameList: TFrameList
     OnPopup = PopupMenuPopup
     Left = 440
     Top = 192
+    object SelectAll1: TMenuItem
+      Caption = 'Select All'
+      OnClick = SelectAll1Click
+    end
+    object ClearSelection1: TMenuItem
+      Caption = 'Clear Selection'
+      OnClick = ClearSelection1Click
+    end
+    object N4: TMenuItem
+      Caption = '-'
+    end
     object ExpandAll1: TMenuItem
       Caption = 'Expand All'
       OnClick = ExpandAll1Click

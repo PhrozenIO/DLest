@@ -106,6 +106,8 @@ object FormProcessList: TFormProcessList
         OnNodeDblClick = VSTProcessNodeDblClick
         Touch.InteractiveGestures = [igPan, igPressAndTap]
         Touch.InteractiveGestureOptions = [igoPanSingleFingerHorizontal, igoPanSingleFingerVertical, igoPanInertia, igoPanGutter, igoParentPassthrough]
+        ExplicitWidth = 685
+        ExplicitHeight = 164
         Columns = <
           item
             Position = 0
@@ -183,6 +185,8 @@ object FormProcessList: TFormProcessList
         OnNodeDblClick = VSTModulesNodeDblClick
         Touch.InteractiveGestures = [igPan, igPressAndTap]
         Touch.InteractiveGestureOptions = [igoPanSingleFingerHorizontal, igoPanSingleFingerVertical, igoPanInertia, igoPanGutter, igoParentPassthrough]
+        ExplicitWidth = 685
+        ExplicitHeight = 161
         Columns = <
           item
             Position = 0
@@ -276,7 +280,18 @@ object FormProcessList: TFormProcessList
   object PopupModules: TPopupMenu
     OnPopup = PopupModulesPopup
     Left = 556
-    Top = 231
+    Top = 247
+    object SelectAll1: TMenuItem
+      Caption = 'Select All'
+      OnClick = SelectAll1Click
+    end
+    object DeselectAll1: TMenuItem
+      Caption = 'Clear Selection'
+      OnClick = DeselectAll1Click
+    end
+    object N3: TMenuItem
+      Caption = '-'
+    end
     object OpenSelectedModules1: TMenuItem
       Caption = 'Open Selected Memory Mapped Module(s)'
       OnClick = OpenSelectedModules1Click
@@ -287,6 +302,13 @@ object FormProcessList: TFormProcessList
     object OpenSelectedModulesFromFiles1: TMenuItem
       Caption = 'Open Selected Module(s) From File(s)'
       OnClick = OpenSelectedModulesFromFiles1Click
+    end
+    object N2: TMenuItem
+      Caption = '-'
+    end
+    object DumpReconstructedImageofSelectedModules1: TMenuItem
+      Caption = 'Dump Reconstructed Image of Selected Module(s)'
+      OnClick = DumpReconstructedImageofSelectedModules1Click
     end
   end
 end

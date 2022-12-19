@@ -17,13 +17,15 @@
 {                                                                              }
 {******************************************************************************}
 
-// Dump module image (reconstructed)
 // Display info about current modules (list) : MD5, SHA1, Signed, COmpany etc..
 // Copy columns
 // Google search with "Library name" or "Library name" + "Export Name"
+// Google search md5, sha1 etc..
 
 (*
  For Next Release (v2.0):
+  - Scan Folder (Regex List File, to have multiple regex for expert search)
+  - In process List, option to dump all selected process modules.
   - Improved Tabs Auto Naming.
   - Integrate future Unprotect.it API.
   - Integrate CRC32 in Json Export.

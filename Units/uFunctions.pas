@@ -56,6 +56,8 @@ function ShowFileOnExplorer(const AFileName : String) : Boolean;
 procedure NTSetPrivilege(const APrivilegeName: string; const AEnabled: Boolean);
 function GetElevationLabel() : String;
 function RunAs(const AFileName : String; const AArgument : String = ''): Boolean;
+function BufferToHexView(ABuffer : PVOID; ABufferSize : Int64; pLastOffset : PNativeUINT = nil; AStartOffset : NativeUINT = 0) : String;
+function Ternary(const ACondition : Boolean; const APositiveResult, ANegativeResult : String) : String;
 
 const PROCESS_QUERY_LIMITED_INFORMATION = $1000;
       MSGFLT_ALLOW                      = 1;
@@ -502,6 +504,90 @@ begin
                                 nil,
                                 SW_SHOW
   ) <= 32);
+end;
+
+{ _.BufferToHexView }
+function BufferToHexView(ABuffer : PVOID; ABufferSize : Int64; pLastOffset : PNativeUINT = nil; AStartOffset : NativeUINT = 0) : String;
+var ARows     : DWORD;
+    i, n      : integer;
+    AVal      : Byte;
+    sBuilder  : TStringBuilder;
+    HexVal    : array[0..16-1] of TVarRec;
+    AsciiVal  : array[0..16-1] of TVarRec;
+    HexMask   : String; {%x}
+    AsciiMask : String; {%s}
+
+begin
+  result := '';
+
+  ///
+  ARows := ceil(ABufferSize / 16);
+
+  sBuilder := TStringBuilder.Create();
+  try
+    {
+      Row
+    }
+    for I := 0 to ARows -1 do begin
+      {
+        Col
+      }
+      for n := 0 to 16-1 do begin
+        AVal := PByte(NativeUInt(ABuffer) + (I * 16) + n)^;
+
+        HexVal[n].VType    := vtInteger;
+        HexVal[n].VInteger := AVal;
+
+        AsciiVal[n].VType := vtChar;
+        if AVal in [32..255] then begin
+          AsciiVal[n].VChar := AnsiChar(AVal);
+        end else begin
+          AsciiVal[n].VChar := '.';
+        end;
+      end;
+
+      HexMask   := '';
+      AsciiMask := '';
+      for n := 0 to 16-1 do begin
+        if ((I * 16) + n) > ABufferSize then begin
+          HexMask   := HexMask   + #32#32#32;
+          AsciiMask := AsciiMask + #32#32;
+
+          continue;
+        end;
+
+        HexMask   := HexMask + '%.2x' + #32;
+        AsciiMask := AsciiMask + '%s';
+      end;
+      Delete(HexMask, length(HexMask), 1);
+
+      {
+        Draw
+      }
+      sBuilder.AppendLine(
+          Format('%.8x', [AStartOffset + (I * 16)]) + '|' +
+          Format(HexMask, HexVal) + '|' +
+          Format(AsciiMask, AsciiVal)
+      );
+    end;
+  finally
+    result := sBuilder.ToString();
+
+    if Assigned(pLastOffset) then begin
+      pLastOffset^ := (ARows * 16);
+    end;
+
+    sBuilder.Free;
+  end;
+end;
+
+{ _.Ternary }
+function Ternary(const ACondition : Boolean; const APositiveResult, ANegativeResult : String) : String;
+begin
+  if ACondition then
+    result := APositiveResult
+  else
+    result := ANegativeResult;
 end;
 
 initialization

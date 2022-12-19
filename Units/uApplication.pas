@@ -27,9 +27,9 @@ const
 
   APPLICATION_ARCHITECTURE =
   {$IFDEF WIN64}
-    'x86-64'
+    'x64'
   {$ELSE}
-    'x86-32'
+    'x32'
   {$ENDIF};
 
 implementation

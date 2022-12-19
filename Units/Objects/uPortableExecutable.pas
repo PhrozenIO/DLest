@@ -17,6 +17,8 @@
 {                                                                              }
 {******************************************************************************}
 
+// TODO: Improve the code quality and efficiency
+
 unit uPortableExecutable;
 
 interface
@@ -46,26 +48,34 @@ type
     {$ENDIF};
   PImageOptionalHeader = ^TImageOptionalHeader;
 
-  TSection = class
-  private
-    FName               : String;
-    FOffset             : UInt64;
-    FImageSectionHeader : TImageSectionHeader;
-  public
-    {@C}
-    constructor Create(const AImageSectionHeader : TImageSectionHeader; const AOffset : UInt64);
-
-    {@G}
-    property Name               : String              read FName;
-    property Offset             : UInt64              read FOffset;
-    property ImageSectionHeader : TImageSectionHeader read FImageSectionHeader;
-  end;
-
   TParseFrom = (
-    pfNone,
     pfFile,
     pfMemory
   );
+
+  TPortableExecutable = class;
+
+  TSection = class
+  private
+    FOwner              : TPortableExecutable;
+    FName               : String;
+    FHeaderOffset       : UInt64;
+    FImageSectionHeader : TImageSectionHeader;
+
+    {@M}
+    function GetDataOffset() : UInt64;
+    function GetDataSize() : Cardinal;
+  public
+    {@C}
+    constructor Create(const AOwner : TPortableExecutable; const AImageSectionHeader : TImageSectionHeader; const AHeaderOffset : UInt64);
+
+    {@G}
+    property Name               : String              read FName;
+    property HeaderOffset       : UInt64              read FHeaderOffset;
+    property DataOffset         : UInt64              read GetDataOffset;
+    property DataSize           : Cardinal            read GetDataSize;
+    property ImageSectionHeader : TImageSectionHeader read FImageSectionHeader;
+  end;
 
   TExport = class(TPersistent)
   private
@@ -134,9 +144,11 @@ type
     function GetImageOptionalHeader() : TImageOptionalHeader;
     function GetSections() : TObjectList<TSection>;
     function GetExports() : TObjectList<TExport>;
+    function GetIs64() : Boolean;
 
     procedure RaiseUnparsedHeader();
 
+    procedure Read(const AOffset : UInt64; pBuffer : Pointer; const ABufferSize : UInt64);
     procedure Parse();
   public
     {@C}
@@ -153,6 +165,8 @@ type
     function GetHeaderSectionName(const AOffset : UInt64; const AShortName : Boolean; var APEHeaderSectionNature : TPEHeaderSectionNature) : String; overload;
     function GetHeaderSectionName(const AOffset : UInt64; const AShortName : Boolean) : String; overload;
 
+    function SaveToFile(const ADestinationFile : String) : Boolean;
+
     {@G}
     property ImageDosHeader      : TImageDosHeader       read GetImageDosHeader;
     property ImageNtSignature    : DWORD                 read GetImageNtSignature;
@@ -160,6 +174,9 @@ type
     property ImageOptionalHeader : TImageOptionalHeader  read GetImageOptionalHeader;
     property Sections            : TObjectList<TSection> read GetSections;
     property ExportList          : TObjectList<TExport>  read GetExports;
+    property BaseOffset          : UInt64                read FBaseOffset;
+    property ParseFrom           : TParseFrom            read FParseFrom;
+    property Is64                : Boolean               read GetIs64;
   end;
 
   var
@@ -168,7 +185,69 @@ type
 
 implementation
 
-uses uExceptions, System.SysUtils;
+uses uExceptions, System.SysUtils, Winapi.ImageHlp;
+
+(* Globals *)
+
+procedure ComputePECheckSum(const APEFile : String);
+var hFile        : THandle;
+    hFileMap     : THandle;
+    pFileMapView : Pointer;
+    AFileSize    : Int64;
+    AHeaderSum   : DWORD;
+    ACheckSum    : DWORD;
+    AOffset      : DWORD;
+begin
+  hFile := CreateFileW(
+      PWideChar(APEFile),
+      GENERIC_READ or GENERIC_WRITE,
+      FILE_SHARE_READ,
+      nil,
+      OPEN_EXISTING,
+      FILE_ATTRIBUTE_NORMAL,
+      0
+  );
+  if hFile = INVALID_HANDLE_VALUE then
+    raise EWindowsException.Create(Format('CreateFileW[%s]', [APEFile]));
+  try
+    if not GetFileSizeEx(hFile, AFileSize) then
+      raise EWindowsException.Create(Format('GetFileSizeEx[%s]', [APEFile]));
+    ///
+
+    hFileMap := CreateFileMapping(hFile, nil, PAGE_READWRITE, 0, AFileSize, nil);
+    if hFileMap = 0 then
+      raise EWindowsException.Create(Format('CreateFileMapping[%s]', [APEFile]));
+    try
+      pFileMapView := MapViewOfFile(hFileMap, FILE_MAP_READ or FILE_MAP_WRITE, 0, 0, AFileSize);
+      if pFileMapView = nil then
+        raise EWindowsException.Create(Format('MapViewOfFile[%s]', [APEFile]));
+      try
+        if CheckSumMappedFile(pFileMapView, AFileSize, @AHeaderSum, @ACheckSum) = nil then
+          raise EWindowsException.Create(Format('CheckSumMappedFile[%s]', [APEFile]));
+        ///
+
+        if (PImageDosHeader(pFileMapView)^.e_magic <> IMAGE_DOS_SIGNATURE) or
+           (PDWORD(NativeUInt(pFileMapView) + PImageDosHeader(pFileMapView)^._lfanew)^ <> IMAGE_NT_SIGNATURE) then
+          raise Exception.Create(Format('"%s" is not a valid PE file.', [APEFile]));
+        ///
+
+        // Hot-Patch Checksum in Optional Header
+        AOffset := PImageDosHeader(pFileMapView)^._lfanew;
+        Inc(AOffset, SizeOf(DWORD)); // NT Signature
+        Inc(AOffset, SizeOf(TImageFileHeader));
+
+        PImageOptionalHeader(Pointer(NativeUInt(pFileMapView) + AOffset))^.CheckSum := ACheckSum;
+      finally
+        FlushViewOfFile(pFileMapView, AFileSize);
+        UnmapViewOfFile(pFileMapView);
+      end;
+    finally
+      CloseHandle(hFileMap);
+    end;
+  finally
+    CloseHandle(hFile);
+  end;
+end;
 
 (* TPortableExecutable Class *)
 
@@ -179,7 +258,7 @@ begin
   ///
 
   FSuccess     := False;
-  FParseFrom   := pfNone;
+  FParseFrom   := pfFile;
   FHandle      := INVALID_HANDLE_VALUE;
   FCloseHandle := True;
   FBaseOffset  := 0;
@@ -201,6 +280,35 @@ begin
   FExports  := TObjectList<TExport>.Create(True);;
 end;
 
+{ TPortableExecutable.Read }
+procedure TPortableExecutable.Read(const AOffset : UInt64; pBuffer : Pointer; const ABufferSize : UInt64);
+var ABytesRead  : Cardinal;
+    stBytesRead : SIZE_T;
+begin
+  if not Assigned(pBuffer) then
+    raise Exception.Create('Invalid Pointer');
+  ///
+
+  if ABufferSize = 0 then
+    Exit();
+  
+  case FParseFrom of
+    pfFile: begin
+      if not SetFilePointerEx(FHandle, AOffset, nil, FILE_BEGIN) then
+        raise EWindowsException.Create('SetFilePointerEx');
+      ///
+
+      if not ReadFile(FHandle, PByte(pBuffer)^, ABufferSize, ABytesRead, nil) then
+        raise EWindowsException.Create('ReadFile');
+    end;
+
+    pfMemory: begin
+      if not ReadProcessMemory(FHandle, Pointer(AOffset), pBuffer, ABufferSize, stBytesRead) then
+        raise EWindowsException.Create('ReadProcessMemory');
+    end;
+  end;
+end;
+
 { TPortableExecutable.Parse }
 procedure TPortableExecutable.Parse();
 var AOffset              : UInt64;
@@ -210,26 +318,14 @@ var AOffset              : UInt64;
     AExport              : TExport;
     AOrdinal             : Word;
     ANameOffset          : UInt64;
+    ALength              : UInt64;
 
   procedure Read(pBuffer : Pointer; const ABufferSize : UInt64; var ASavedOffset : UInt64; const AForwardOffset : Boolean = False); overload;
   var ABytesRead  : Cardinal;
       stBytesRead : SIZE_T;
   begin
-    case FParseFrom of
-      pfFile: begin
-        if not SetFilePointerEx(FHandle, AOffset, nil, FILE_BEGIN) then
-          raise EWindowsException.Create('SetFilePointerEx');
-        ///
-
-        if not ReadFile(FHandle, PByte(pBuffer)^, ABufferSize, ABytesRead, nil) then
-          raise EWindowsException.Create('ReadFile');
-      end;
-
-      pfMemory: begin
-        if not ReadProcessMemory(FHandle, Pointer(AOffset), pBuffer, ABufferSize, stBytesRead) then
-          raise EWindowsException.Create('ReadProcessMemory');
-      end;
-    end;
+    self.Read(AOffset, pBuffer, ABufferSize);
+    ///
 
     ASavedOffset := AOffset;
 
@@ -330,9 +426,13 @@ begin
   (*
       DOS_STUB
   *)
-  //SetLength(FDosStub, FImageDosHeader._lfanew - SizeOf(TImageDosHeader));
+  ALength := FImageDosHeader._lfanew - SizeOf(TImageDosHeader);
 
-  //Read(@FDosStub[0], Length(FDosStub), True);
+  if ALength > 0 then begin
+    SetLength(FDosStub, ALength);
+
+    Read(@FDosStub[0], Length(FDosStub), True);
+  end;
 
   AOffset := FBaseOffset + FImageDosHeader._lfanew;
 
@@ -376,7 +476,7 @@ begin
   for I := 1 to FImageFileHeader.NumberOfSections do begin
     Read(@ASectionHeader, SizeOf(TImageSectionHeader), ASectionHeaderOffset, True);
 
-    FSections.Add(TSection.Create(ASectionHeader, ASectionHeaderOffset));
+    FSections.Add(TSection.Create(self, ASectionHeader, ASectionHeaderOffset));
   end;
 
   (*
@@ -640,10 +740,103 @@ begin
   end;
 end;
 
+{ _.GetHeaderSectionName }
 function TPortableExecutable.GetHeaderSectionName(const AOffset : UInt64; const AShortName : Boolean) : String;
 var ANature : TPEHeaderSectionNature;
 begin
   self.GetHeaderSectionName(AOffset, AShortName, ANature);
+end;
+
+{ TPortableExecutable.SaveToFile }
+function TPortableExecutable.SaveToFile(const ADestinationFile : String) : Boolean;
+var AFileStream         : TFileStream;
+    ASection            : TSection;
+    AImageSectionHeader : TImageSectionHeader;
+    I                   : Cardinal;
+    pData               : Pointer;
+begin
+  result := False;
+  ///
+  
+  RaiseUnparsedHeader();
+  ///
+
+  ForceDirectories(ExtractFilePath(ADestinationFile));
+
+  AFileStream := TFileStream.Create(ADestinationFile, fmOpenWrite or fmCreate or fmShareExclusive);
+  try
+    // Write DOS Header
+    AFileStream.Write(FImageDosHeader, SizeOf(TImageDosHeader));
+
+    // Write DOS Stub
+    AFileStream.Write(FDosStub[0], Length(FDosStub));
+
+    // Write NT Header Signature
+    AFileStream.Write(FImageNtSignature, SizeOf(DWORD));
+
+    // Write Image File Header
+    AFileStream.Write(FImageFileHeader, SizeOf(TImageFileHeader));
+
+    // Write The Optional Header
+    AFileStream.Write(FImageOptionalHeader, SizeOf(TImageOptionalHeader));
+
+    // Write Section Headers
+    for I := 0 to FSections.count -1 do begin
+      ASection := FSections.Items[I];
+      ///
+      
+      CopyMemory(
+        @AImageSectionHeader,
+        @ASection.ImageSectionHeader,
+        SizeOf(TImageSectionHeader)
+      );
+
+      case FParseFrom of
+        pfFile: ;
+        pfMemory: begin
+          // Align Section
+          AImageSectionHeader.PointerToRawData := AImageSectionHeader.VirtualAddress;
+
+          if (I + 1 < FSections.Count) then
+            AImageSectionHeader.SizeOfRawData := (
+              FSections.Items[I + 1].ImageSectionHeader.VirtualAddress - AImageSectionHeader.VirtualAddress
+            );
+        end;
+      end;
+
+      ///
+      AFileStream.Write(AImageSectionHeader, SizeOf(TImageSectionHeader));
+    end;
+
+    // Write Section Data (JIT)
+    for ASection in FSections do begin
+      case FParseFrom of
+        pfFile   : AFileStream.Position := ASection.ImageSectionHeader.PointerToRawData;
+        pfMemory : AFileStream.Position := ASection.ImageSectionHeader.VirtualAddress;
+      end;
+
+      if ASection.DataSize > 0 then begin
+        GetMem(pData, ASection.DataSize);
+        try
+          self.Read(ASection.DataOffset, pData, ASection.DataSize);
+
+          ///
+          AFileStream.Write(PByte(pData)^, ASection.DataSize);
+        finally
+          FreeMem(pData, ASection.DataSize);
+        end;
+      end;
+    end;
+
+    ///
+    result := True;
+  finally
+    if Assigned(AFileStream) then
+      FreeAndNil(AFileStream);
+  end;
+
+  // Recalculate PE CheckSum
+  ComputePECheckSum(ADestinationFile); // TODO apply on the fly (current object) instead of reloading file.
 end;
 
 { TPortableExecutable.RaiseUnparsedHeader }
@@ -707,20 +900,55 @@ begin
   result := FExports;
 end;
 
+{ TPortableExecutable.GetIs64 }
+function TPortableExecutable.GetIs64() : Boolean;
+begin
+  self.RaiseUnparsedHeader();
+  ///
+
+  result := FImageFileHeader.Machine = IMAGE_FILE_MACHINE_AMD64;
+end;
+
 (* TSection Class *)
 
 { TSection.Create }
-constructor TSection.Create(const AImageSectionHeader : TImageSectionHeader; const AOffset : UInt64);
+constructor TSection.Create(const AOwner : TPortableExecutable; const AImageSectionHeader : TImageSectionHeader; const AHeaderOffset : UInt64);
 begin
   inherited Create();
   ///
 
-  FOffset             := AOffset;
+  FOwner := AOwner;
+
+  FHeaderOffset       := AHeaderOffset;
   FImageSectionHeader := AImageSectionHeader;
 
   SetString(FName, PAnsiChar(@AImageSectionHeader.Name), Length(AImageSectionHeader.Name));
 
   FName := FName.Trim();
+end;
+
+{ TSection.GetDataOffset }
+function TSection.GetDataOffset() : UInt64;
+begin
+  result := FOwner.BaseOffset;
+  ///
+
+  case FOwner.ParseFrom of
+    pfFile   : Inc(result, FImageSectionHeader.PointerToRawData);
+    pfMemory : Inc(result, FImageSectionHeader.VirtualAddress);
+  end;
+end;
+
+{ TSection.GetDataSize }
+function TSection.GetDataSize() : Cardinal;
+begin
+  result := 0;
+  ///
+
+  case FOwner.ParseFrom of
+    pfFile   : result := FImageSectionHeader.SizeOfRawData;
+    pfMemory : result := FImageSectionHeader.Misc.VirtualSize;
+  end;
 end;
 
 (* TExport Class *)

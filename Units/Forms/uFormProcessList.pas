@@ -58,6 +58,11 @@ type
     OpenSelectedModules1: TMenuItem;
     N1: TMenuItem;
     OpenSelectedModulesFromFiles1: TMenuItem;
+    N2: TMenuItem;
+    DumpReconstructedImageofSelectedModules1: TMenuItem;
+    SelectAll1: TMenuItem;
+    DeselectAll1: TMenuItem;
+    N3: TMenuItem;
     procedure VSTProcessChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTProcessFocusChanged(Sender: TBaseVirtualTree;
       Node: PVirtualNode; Column: TColumnIndex);
@@ -98,6 +103,9 @@ type
     procedure VSTModulesNodeDblClick(Sender: TBaseVirtualTree;
       const HitInfo: THitInfo);
     procedure OpenSelectedModulesFromFiles1Click(Sender: TObject);
+    procedure DumpReconstructedImageofSelectedModules1Click(Sender: TObject);
+    procedure SelectAll1Click(Sender: TObject);
+    procedure DeselectAll1Click(Sender: TObject);
   private
     FTotalModulesSize : UInt64;
 
@@ -125,7 +133,7 @@ implementation
 
 uses uEnumProcessThread, uEnumExportsThread, uFormMain, uEnumModulesThread,
      uFunctions, System.Math, uConstants, uGraphicUtils, Generics.Collections,
-     uFormThreadManager;
+     uFormThreadManager, uPortableExecutable, VCL.FileCtrl;
 
 {$R *.dfm}
 
@@ -135,6 +143,11 @@ begin
   ///
 
   self.Reset();
+end;
+
+procedure TFormProcessList.DeselectAll1Click(Sender: TObject);
+begin
+  VSTModules.ClearSelection();
 end;
 
 procedure TFormProcessList.DoResize();
@@ -151,6 +164,48 @@ begin
   LabelMessage.Canvas.TextRect(ARect, ACaption, [tfCalcRect, tfWordBreak]);
 
   PanelMessage.ClientHeight := ARect.Height + LabelMessage.Margins.Top + LabelMessage.Margins.Bottom;
+end;
+
+procedure TFormProcessList.DumpReconstructedImageofSelectedModules1Click(
+  Sender: TObject);
+var APortableExecutable : TPortableExecutable;
+    pNode               : PVirtualNode;
+    pData               : PModuleTreeData;
+    ADestFile           : String;
+    ADirectory          : String;
+begin
+  if not SelectDirectory('Select output directory', '', ADirectory) then
+    Exit();
+  ///
+
+  for pNode in VSTModules.Nodes do begin
+    if not (vsSelected in pNode.States) then
+      continue;
+    ///
+
+    pData := pNode.GetData;
+    if not Assigned(pData) then
+      Exit();
+    ///
+
+    APortableExecutable := TPortableExecutable.CreateFromMemory(
+      pData^.ProcessId,
+      pData^.ModuleBase
+    );
+    try
+      ADestFile := Format('%s%s_%s', [
+        IncludeTrailingPathDelimiter(ADirectory),
+        Ternary(APortableExecutable.Is64, 'x64', 'x32'),
+        ExtractFileName(pData^.ImagePath)
+      ]);
+
+      ///
+      APortableExecutable.SaveToFile(ADestFile);
+    finally
+      if Assigned(APortableExecutable) then
+        FreeAndNil(APortableExecutable);
+    end;
+  end;
 end;
 
 procedure TFormProcessList.FormResize(Sender: TObject);
@@ -177,6 +232,11 @@ begin
 
   ///
   FTotalModulesSize := 0;
+end;
+
+procedure TFormProcessList.SelectAll1Click(Sender: TObject);
+begin
+  VSTModules.SelectAll(True);
 end;
 
 procedure TFormProcessList.VSTModulesBeforeCellPaint(Sender: TBaseVirtualTree;

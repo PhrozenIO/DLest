@@ -55,6 +55,9 @@ type
     ExportEntireListToJson1: TMenuItem;
     ExportVisibleFilteredItemsToJson1: TMenuItem;
     ExportSelectedItemsToJson1: TMenuItem;
+    SelectAll1: TMenuItem;
+    ClearSelection1: TMenuItem;
+    N4: TMenuItem;
     procedure VSTChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode;
@@ -84,6 +87,8 @@ type
     procedure ExportEntireListToJson1Click(Sender: TObject);
     procedure ExportVisibleFilteredItemsToJson1Click(Sender: TObject);
     procedure ExportSelectedItemsToJson1Click(Sender: TObject);
+    procedure SelectAll1Click(Sender: TObject);
+    procedure ClearSelection1Click(Sender: TObject);
   private
     FGrouped      : Boolean;
     FTotalExports : UInt64;
@@ -287,6 +292,11 @@ begin
   self.EditRegex.RightButton.Visible := False;
 end;
 
+procedure TFrameList.ClearSelection1Click(Sender: TObject);
+begin
+  VST.ClearSelection();
+end;
+
 procedure TFrameList.CloseTab1Click(Sender: TObject);
 begin
   FormMain.CloseActiveTab();
@@ -328,6 +338,11 @@ end;
 procedure TFrameList.RenameTab1Click(Sender: TObject);
 begin
   FormMain.RenameActiveTab();
+end;
+
+procedure TFrameList.SelectAll1Click(Sender: TObject);
+begin
+  VST.SelectAll(True);
 end;
 
 procedure TFrameList.ShowSelectedFileOnExplorer1Click(Sender: TObject);
