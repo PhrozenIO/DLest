@@ -43,7 +43,9 @@ uses
   uFormAbout in 'Units\Forms\uFormAbout.pas' {FormAbout},
   uExportExportsToJsonThread in 'Units\Threads\uExportExportsToJsonThread.pas',
   uApplication in 'Units\uApplication.pas',
-  uTypes in 'Units\uTypes.pas';
+  uTypes in 'Units\uTypes.pas',
+  uVirtualStringTreeUtils in 'Units\uVirtualStringTreeUtils.pas',
+  uFormExtendedLibrariesInformation in 'Units\Forms\uFormExtendedLibrariesInformation.pas' {FormExtendedLibrariesInformation};
 
 {$R *.res}
 
@@ -61,5 +63,6 @@ begin
   Application.CreateForm(TFormScanFolder, FormScanFolder);
   Application.CreateForm(TFormLogs, FormLogs);
   Application.CreateForm(TFormAbout, FormAbout);
+
   Application.Run;
 end.

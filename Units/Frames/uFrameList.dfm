@@ -137,11 +137,13 @@ object FrameList: TFrameList
       end>
   end
   object PopupMenu: TPopupMenu
+    Images = FormMain.VirtualImageList
     OnPopup = PopupMenuPopup
     Left = 440
     Top = 192
     object SelectAll1: TMenuItem
       Caption = 'Select All'
+      ShortCut = 16449
       OnClick = SelectAll1Click
     end
     object ClearSelection1: TMenuItem
@@ -160,6 +162,30 @@ object FrameList: TFrameList
       OnClick = CollapseAll1Click
     end
     object N1: TMenuItem
+      Caption = '-'
+    end
+    object Google1: TMenuItem
+      Caption = 'Google Search'
+      object SearchLibraryName1: TMenuItem
+        Caption = 'Search Selected Library Name'
+        OnClick = SearchLibraryName1Click
+      end
+      object SearchAPIName1: TMenuItem
+        Caption = 'Search Selected API Name'
+        OnClick = SearchAPIName1Click
+      end
+      object N6: TMenuItem
+        Caption = '-'
+      end
+      object SearchBoth1: TMenuItem
+        Caption = 'Search Both (Selected)'
+        OnClick = SearchBoth1Click
+      end
+    end
+    object Copy1: TMenuItem
+      Caption = 'Copy'
+    end
+    object N5: TMenuItem
       Caption = '-'
     end
     object ShowSelectedFileProperties1: TMenuItem
@@ -202,6 +228,15 @@ object FrameList: TFrameList
       Caption = 'Close Tab'
       ShortCut = 16472
       OnClick = CloseTab1Click
+    end
+    object N7: TMenuItem
+      Caption = '-'
+    end
+    object LibrariesViewExtendedInfo1: TMenuItem
+      Caption = 'Libraries View (Extended Info)'
+      ImageIndex = 25
+      ImageName = 'file-dll-filled-fingerprint'
+      OnClick = LibrariesViewExtendedInfo1Click
     end
   end
 end

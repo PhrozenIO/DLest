@@ -37,6 +37,27 @@ type
       arch64
   );
 
+  TApplicationExif = record
+    CompanyName,
+    FileDescription,
+    FileVersion,
+    InternalName,
+    LegalCopyright,
+    LegalTrademarks,
+    OriginalFileName,
+    ProductName,
+    ProductVersion,
+    Comments,
+    PrivateBuild,
+    SpecialBuild : string;
+  end;
+
+  TLandCodepage = record
+    wLanguage,
+    wCodePage : word;
+  end;
+  PLandCodepage = ^TLandCodepage;
+
 function GetWindowsDirectory() : string;
 procedure InitializeSystemIcons(var AImages : TImageList; var AFileInfo : TSHFileInfo; ALargeIcon : Boolean = False);
 function SystemFileIcon(const AFileName : string; AExtensionMode : Boolean = False) : Integer;
@@ -58,6 +79,10 @@ function GetElevationLabel() : String;
 function RunAs(const AFileName : String; const AArgument : String = ''): Boolean;
 function BufferToHexView(ABuffer : PVOID; ABufferSize : Int64; pLastOffset : PNativeUINT = nil; AStartOffset : NativeUINT = 0) : String;
 function Ternary(const ACondition : Boolean; const APositiveResult, ANegativeResult : String) : String;
+procedure GoogleSearch(const ASearchQuery : String);
+function GetFileSize(const AFileName : String) : UInt64;
+function GetApplicationCompany(const AFileName : String) : String;
+function GetApplicationVersion(const AFileName : String) : String;
 
 const PROCESS_QUERY_LIMITED_INFORMATION = $1000;
       MSGFLT_ALLOW                      = 1;
@@ -66,7 +91,133 @@ var ChangeWindowMessageFilterEx : function(hwnd : THandle; message : UINT; actio
 
 implementation
 
-uses System.Math, System.IOUtils, uExceptions, System.Masks;
+uses System.Math, System.IOUtils, uExceptions, System.Masks, System.Net.URLClient;
+
+{ _.GetApplicationExif }
+function GetApplicationExif(const AFileName : String; var AExifData : TApplicationExif) : Boolean;
+var ADummy    : Cardinal;
+    ALen      : Cardinal;
+    pBlock    : Pointer;
+    pBuffer   : Pointer;
+    ALanguage : String;
+begin
+  result := false;
+  ///
+
+  ZeroMemory(@AExifData, SizeOf(TApplicationExif));
+  ///
+
+  if not FileExists(AFileName) then
+    Exit();
+
+  ALen := GetFileVersionInfoSize(PChar(AFileName), ADummy);
+  if ALen = 0 then
+    Exit();
+
+  GetMem(pBlock, ALen);
+  try
+    if not GetFileVersionInfo(PChar(AFileName), 0, ALen, pBlock) then
+      exit();
+
+    // pBuffer is auto freed (if I can read Win MSDN)
+    if not VerQueryValue(pBlock, '\VarFileInfo\Translation\', pBuffer, ALen) then
+      exit();
+
+    ALanguage := Format('%.4x%.4x', [
+      PLandCodepage(pBuffer)^.wLanguage,
+      PLandCodepage(pBuffer)^.wCodePage
+    ]);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\CompanyName'), pBuffer, ALen) then
+      AExifData.CompanyName := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\FileDescription'), pBuffer, ALen) then
+      AExifData.FileDescription := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\FileVersion'), pBuffer, ALen) then
+      AExifData.FileVersion := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\InternalName'), pBuffer, ALen) then
+      AExifData.InternalName := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\LegalCopyright'), pBuffer, ALen) then
+      AExifData.LegalCopyright := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\LegalTrademarks'), pBuffer, ALen) then
+      AExifData.LegalTrademarks := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\OriginalFileName'), pBuffer, ALen) then
+      AExifData.OriginalFileName := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\ProductName'), pBuffer, ALen) then
+      AExifData.ProductName := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\ProductVersion'), pBuffer, ALen) then
+      AExifData.ProductVersion := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\Comments'), pBuffer, ALen) then
+      AExifData.Comments := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\PrivateBuild'), pBuffer, ALen) then
+      AExifData.PrivateBuild := PWideChar(pBuffer);
+
+    if VerQueryValue(pBlock, PWideChar('\StringFileInfo\' + ALanguage + '\SpecialBuild'), pBuffer, ALen) then
+      AExifData.SpecialBuild := PWideChar(pBuffer);
+  finally
+    FreeMem(pBlock);
+  end;
+
+  ///
+  result := True;
+end;
+
+{ _.GetApplicationCompany }
+function GetApplicationCompany(const AFileName : String) : String;
+var AExif : TApplicationExif;
+begin
+  result := '';
+  ///
+
+  if not FileExists(AFileName) then
+    exit();
+
+  if not GetApplicationExif(AFileName, AExif) then
+    exit();
+
+  ///
+  result := AExif.CompanyName;
+end;
+
+{ _.GetApplicationVersion }
+function GetApplicationVersion(const AFileName : String) : String;
+var AExif : TApplicationExif;
+begin
+  result := '';
+  ///
+
+  if not FileExists(AFileName) then
+    exit();
+
+  if not GetApplicationExif(AFileName, AExif) then
+    exit();
+
+  ///
+  result := AExif.FileVersion;
+end;
+
+{ _.GetFileSize }
+function GetFileSize(const AFileName : String) : UInt64;
+var AFileInfo : TWin32FileAttributeData;
+begin
+  result := 0;
+  ///
+
+  if not FileExists(AFileName) then
+    Exit();
+
+  if GetFileAttributesEx(PWideChar(AFileName), GetFileExInfoStandard, @AFileInfo) then
+    result := AFileInfo.nFileSizeLow or (AFileInfo.nFileSizeHigh shl 32);
+end;
 
 { _.NTSetPrivilege }
 procedure NTSetPrivilege(const APrivilegeName: string; const AEnabled: Boolean);
@@ -139,6 +290,14 @@ begin
   AShellExecInfo.fMask  := SEE_MASK_INVOKEIDLIST;
 
   ShellExecuteEx(@AShellExecInfo);
+end;
+
+{ _.GoogleSearch }
+procedure GoogleSearch(const ASearchQuery : String);
+begin
+  Open(Format('https://www.google.com/search?q=%s', [
+    TURI.URLEncode(ASearchQuery, True)
+  ]));
 end;
 
 { _.Open }

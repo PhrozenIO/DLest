@@ -59,7 +59,8 @@ type
       CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect);
     procedure Clear1Click(Sender: TObject);
   private
-    { Private declarations }
+    {@M}
+    procedure CreateParams(var Params: TCreateParams); override;
   public
     {@M}
     procedure Log(const AMessage : String; const AOwner : TObject; const ALevel : TLogLevel);
@@ -75,6 +76,16 @@ implementation
 uses uFormMain, uConstants;
 
 {$R *.dfm}
+
+procedure TFormLogs.CreateParams(var Params: TCreateParams);
+begin
+  inherited;
+  ///
+
+  Params.ExStyle := Params.ExStyle and NOT WS_EX_APPWINDOW;
+
+  Params.WndParent := 0;
+end;
 
 procedure TFormLogs.Clear1Click(Sender: TObject);
 begin

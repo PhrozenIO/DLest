@@ -25,7 +25,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, VirtualTrees,
   Vcl.ExtCtrls, OMultiPanel, uPortableExecutable, Vcl.Menus, Vcl.ComCtrls,
-  Vcl.StdCtrls, Vcl.Buttons, uTypes;
+  Vcl.StdCtrls, Vcl.Buttons, uTypes, uFormExtendedLibrariesInformation;
 
 type
   TTreeData = record
@@ -58,6 +58,15 @@ type
     SelectAll1: TMenuItem;
     ClearSelection1: TMenuItem;
     N4: TMenuItem;
+    Google1: TMenuItem;
+    N5: TMenuItem;
+    SearchLibraryName1: TMenuItem;
+    SearchAPIName1: TMenuItem;
+    N6: TMenuItem;
+    SearchBoth1: TMenuItem;
+    Copy1: TMenuItem;
+    N7: TMenuItem;
+    LibrariesViewExtendedInfo1: TMenuItem;
     procedure VSTChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode;
@@ -89,33 +98,102 @@ type
     procedure ExportSelectedItemsToJson1Click(Sender: TObject);
     procedure SelectAll1Click(Sender: TObject);
     procedure ClearSelection1Click(Sender: TObject);
+    procedure SearchLibraryName1Click(Sender: TObject);
+    procedure SearchAPIName1Click(Sender: TObject);
+    procedure SearchBoth1Click(Sender: TObject);
+    procedure LibrariesViewExtendedInfo1Click(Sender: TObject);
   private
     FGrouped      : Boolean;
     FTotalExports : UInt64;
+    FExtForm      : TFormExtendedLibrariesInformation;
 
     {@M}
     procedure FilterList(const AReset : Boolean);
     procedure ExportToJson(const AMode : TJSONExportMode);
+    procedure CopyToClipboard(ASender : TObject);
+    function HaveExportInSelection() : Boolean;
+    function HiddenNodeCount() : Cardinal;
+    function VisibleNodeCount() : Cardinal;
   public
     {@C}
     constructor Create(AOwner : TComponent); override;
+    destructor Destroy(); override;
 
     {@M}
     procedure BeginUpdate();
     procedure EndUpdate();
 
     {@G/S}
-    property Grouped      : Boolean read FGrouped      write FGrouped;
-    property TotalExports : UInt64  read FTotalExports write FTotalExports;
+    property Grouped      : Boolean                           read FGrouped      write FGrouped;
+    property TotalExports : UInt64                            read FTotalExports write FTotalExports;
+    property ExtForm      : TFormExtendedLibrariesInformation read FExtForm      write FExtForm;
   end;
 
 implementation
 
 uses uFormMain, uConstants, System.Math, uGraphicUtils, System.RegularExpressions,
      uFunctions, uFormThreadManager, uEnumExportsThread, uExportExportsToJsonThread,
-     VCL.FileCtrl;
+     VCL.FileCtrl, uVirtualStringTreeUtils, VCL.Clipbrd;
 
 {$R *.dfm}
+
+procedure TFrameList.CopyToClipboard(ASender : TObject);
+var pData    : PTreeData;
+    pNode    : PVirtualNode;
+    AStrings : TStringList;
+
+    function ToPointerString(const AValue : UInt64) : String;
+    begin
+      result := Format('0x%p', [Pointer(AValue)]);
+    end;
+
+begin
+  if not (ASender is TMenuItem) then
+    Exit();
+  ///
+
+  AStrings := TStringList.Create();
+  try
+    for pNode in VST.Nodes do begin
+      if not (vsSelected in pNode.States) then
+        continue;
+      ///
+
+      pData := pNode.GetData;
+      if not Assigned(pData) then
+        continue;
+      ///
+
+      if (not Assigned(pData^.ExportEntry)) then
+        continue;
+      ///
+
+
+      case TMenuItem(ASender).Tag of
+        0 : AStrings.Add(pData^.ExportEntry.Name);
+        1 : AStrings.Add(ToPointerString(pData^.ExportEntry.Address));
+        2 : AStrings.Add(ToPointerString(pData^.ExportEntry.RelativeAddress));
+        3 : AStrings.Add(IntToStr(pData^.ExportEntry.Ordinal));
+        4 : AStrings.Add(pData^.ImagePath);
+        else
+          AStrings.Add(Format('name:%s, address:0x%p, rel_address:0x%p, ordinal:%d, path:"%s"', [
+            pData^.ExportEntry.Name,
+            Pointer(pData^.ExportEntry.Address),
+            Pointer(pData^.ExportEntry.RelativeAddress),
+            pData^.ExportEntry.Ordinal,
+            pData^.ImagePath
+          ]));
+      end;
+    end;
+  finally
+    if AStrings.Count > 0 then
+      Clipboard.AsText := AStrings.Text.Trim();
+    ///
+
+    if Assigned(AStrings) then
+      FreeAndNil(AStrings);
+  end;
+end;
 
 procedure TFrameList.ExportEntireListToJson1Click(Sender: TObject);
 begin
@@ -148,7 +226,10 @@ procedure TFrameList.BeginUpdate();
 begin
   EditRegex.Enabled := False;
   VST.Enabled := False;
+
   FormMain.Pages.PopupMenu := nil;
+
+  FExtForm.BeginUpdate();
 
   VST.BeginUpdate();
 end;
@@ -159,6 +240,8 @@ begin
 
   EditRegex.Enabled := True;
   VST.Enabled := True;
+
+  FExtForm.EndUpdate();
 
   VST.EndUpdate();
 end;
@@ -268,6 +351,11 @@ begin
   end;
 end;
 
+procedure TFrameList.LibrariesViewExtendedInfo1Click(Sender: TObject);
+begin
+  ShowForm(FExtForm);
+end;
+
 procedure TFrameList.LoadSelectedFileinNewTab1Click(Sender: TObject);
 var pData : PTreeData;
 begin
@@ -290,6 +378,20 @@ begin
   FGrouped                           := False;
   FTotalExports                      := 0;
   self.EditRegex.RightButton.Visible := False;
+
+  FExtForm := TFormExtendedLibrariesInformation.Create(FormMain);
+
+  ///
+  InitializeCopyPopupMenu(VST, self.Copy1, self.CopyToClipboard);
+end;
+
+destructor TFrameList.Destroy();
+begin
+  if Assigned(FExtForm) then
+    FreeAndNil(FExtForm);
+
+  ///
+  inherited Destroy();
 end;
 
 procedure TFrameList.ClearSelection1Click(Sender: TObject);
@@ -326,18 +428,140 @@ begin
   VST.FullExpand(nil);
 end;
 
-procedure TFrameList.PopupMenuPopup(Sender: TObject);
+function TFrameList.HaveExportInSelection() : Boolean;
+var pNode : PVirtualNode;
+    pData : PTreeData;
 begin
-  self.ExpandAll1.Visible                  := FGrouped;
-  self.CollapseAll1.Visible                := FGrouped;
-  self.ShowSelectedFileProperties1.Enabled := VST.SelectedCount = 1;
-  self.ShowSelectedFileOnExplorer1.Enabled := self.ShowSelectedFileProperties1.Enabled;
-  self.LoadSelectedFileinNewTab1.Enabled   := self.ShowSelectedFileProperties1.Enabled;
+  result := False;
+  ///
+
+  for pNode in VST.Nodes do begin
+    if not (vsSelected in pNode.States) then
+      continue;
+    ///
+
+    pData := pNode.GetData;
+    if not Assigned(pData) then
+      continue;
+    ///
+
+    if Assigned(pData^.ExportEntry) then begin
+      result := True;
+
+      // Or Exit(True)
+
+      ///
+      break;
+    end;
+  end;
+end;
+
+function TFrameList.HiddenNodeCount() : Cardinal;
+var pNode : PVirtualNode;
+begin
+  result := 0;
+  ///
+
+  for pNode in VST.Nodes do begin
+    if not (vsVisible in pNode.States) then
+      Inc(result);
+  end;
+end;
+
+function TFrameList.VisibleNodeCount() : Cardinal;
+var pNode : PVirtualNode;
+begin
+  result := 0;
+  ///
+
+  for pNode in VST.Nodes do begin
+    if vsVisible in pNode.States then
+      Inc(result);
+  end;
+end;
+
+procedure TFrameList.PopupMenuPopup(Sender: TObject);
+var ASelectedCount         : Cardinal;
+    AHaveExportInSelection : Boolean;
+    AHiddenNodeCount       : Cardinal;
+    AVisibleNodeCount      : Cardinal;
+begin
+  ASelectedCount         := VST.SelectedCount;
+  AHaveExportInSelection := HaveExportInSelection();
+  AHiddenNodeCount       := HiddenNodeCount();
+  AVisibleNodeCount      := VisibleNodeCount(); // Could be done differently
+  ///
+
+  self.ExpandAll1.Visible                        := FGrouped;
+  self.CollapseAll1.Visible                      := FGrouped;
+  self.ShowSelectedFileProperties1.Enabled       := ASelectedCount = 1;
+  self.ShowSelectedFileOnExplorer1.Enabled       := self.ShowSelectedFileProperties1.Enabled;
+  self.LoadSelectedFileinNewTab1.Enabled         := self.ShowSelectedFileProperties1.Enabled;
+  self.ClearSelection1.Enabled                   := ASelectedCount >= 1;
+
+  self.Google1.Enabled                           := ASelectedCount = 1;
+
+  self.SearchAPIName1.Enabled                    := (ASelectedCount = 1) and AHaveExportInSelection;
+  self.SearchBoth1.Enabled                       := self.SearchAPIName1.Enabled;
+
+  self.Copy1.Enabled                             := AHaveExportInSelection;
+
+  self.ExportSelectedItemsToJson1.Enabled        := ASelectedCount = 1;
+  self.ExportVisibleFilteredItemsToJson1.Enabled := (AHiddenNodeCount > 0) and (AVisibleNodeCount > 0);
+  self.ExportEntireListToJson1.Enabled           := VST.RootNodeCount > 0;
 end;
 
 procedure TFrameList.RenameTab1Click(Sender: TObject);
 begin
   FormMain.RenameActiveTab();
+end;
+
+procedure TFrameList.SearchAPIName1Click(Sender: TObject);
+var pData : PTreeData;
+begin
+  if VST.FocusedNode = nil then
+    Exit();
+  ///
+
+  pData := VST.FocusedNode.GetData;
+
+  if not Assigned(pData^.ExportEntry) then
+    Exit();
+
+  ///
+  GoogleSearch(Format('"%s"', [pData^.ExportEntry.Name]));
+end;
+
+procedure TFrameList.SearchBoth1Click(Sender: TObject);
+var pData : PTreeData;
+begin
+  if VST.FocusedNode = nil then
+    Exit();
+  ///
+
+  pData := VST.FocusedNode.GetData;
+
+  if not Assigned(pData^.ExportEntry) then
+    Exit();
+
+  ///
+  GoogleSearch(Format('"%s"+"%s"', [
+    ExtractFileName(pData^.ImagePath),
+    ExtractFileName(pData^.ExportEntry.Name)
+  ]));
+end;
+
+procedure TFrameList.SearchLibraryName1Click(Sender: TObject);
+var pData : PTreeData;
+begin
+  if VST.FocusedNode = nil then
+    Exit();
+  ///
+
+  pData := VST.FocusedNode.GetData;
+
+  ///
+  GoogleSearch(Format('"%s"', [ExtractFileName(pData^.ImagePath)]));
 end;
 
 procedure TFrameList.SelectAll1Click(Sender: TObject);

@@ -60,9 +60,9 @@ object FormProcessList: TFormProcessList
       object VSTProcess: TVirtualStringTree
         AlignWithMargins = True
         Left = 2
-        Top = 2
+        Top = 24
         Width = 699
-        Height = 180
+        Height = 158
         Margins.Left = 2
         Margins.Top = 2
         Margins.Right = 2
@@ -106,8 +106,6 @@ object FormProcessList: TFormProcessList
         OnNodeDblClick = VSTProcessNodeDblClick
         Touch.InteractiveGestures = [igPan, igPressAndTap]
         Touch.InteractiveGestureOptions = [igoPanSingleFingerHorizontal, igoPanSingleFingerVertical, igoPanInertia, igoPanGutter, igoParentPassthrough]
-        ExplicitWidth = 685
-        ExplicitHeight = 164
         Columns = <
           item
             Position = 0
@@ -124,6 +122,36 @@ object FormProcessList: TFormProcessList
             Text = 'Image Path'
             Width = 300
           end>
+      end
+      object ToolBar: TToolBar
+        Left = 0
+        Top = 0
+        Width = 703
+        Height = 22
+        AutoSize = True
+        ButtonWidth = 33
+        Caption = 'ToolBar'
+        DrawingStyle = dsGradient
+        GradientEndColor = clWhite
+        GradientStartColor = 16448250
+        HotTrackColor = 15132390
+        Images = FormMain.VirtualImageList
+        List = True
+        TabOrder = 1
+        Transparent = False
+        ExplicitWidth = 689
+        object ToolRefresh: TToolButton
+          Left = 0
+          Top = 0
+          Hint = 'Refresh'
+          AutoSize = True
+          Caption = '='
+          ImageIndex = 26
+          ImageName = 'button-update'
+          ParentShowHint = False
+          ShowHint = True
+          OnClick = ToolRefreshClick
+        end
       end
     end
     object PanelModules: TPanel
@@ -185,8 +213,6 @@ object FormProcessList: TFormProcessList
         OnNodeDblClick = VSTModulesNodeDblClick
         Touch.InteractiveGestures = [igPan, igPressAndTap]
         Touch.InteractiveGestureOptions = [igoPanSingleFingerHorizontal, igoPanSingleFingerVertical, igoPanInertia, igoPanGutter, igoParentPassthrough]
-        ExplicitWidth = 685
-        ExplicitHeight = 161
         Columns = <
           item
             Position = 0
@@ -283,6 +309,7 @@ object FormProcessList: TFormProcessList
     Top = 247
     object SelectAll1: TMenuItem
       Caption = 'Select All'
+      ShortCut = 16449
       OnClick = SelectAll1Click
     end
     object DeselectAll1: TMenuItem

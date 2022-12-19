@@ -38,6 +38,8 @@ const
 var
   _COLOR_GRAD1_BEG   : TColor;
   _COLOR_GRAD1_END   : TColor;
+  _COLOR_GRAD2_BEG   : TColor;
+  _COLOR_GRAD2_END   : TColor;
   _COLOR_LIST_BG_ALT : TColor;
   _ODD_LIST_BG_COLOR : TColor;
   _COLOR_LIGHT_RED   : TColor;
@@ -52,5 +54,8 @@ initialization
   _ODD_LIST_BG_COLOR := rgb(250, 250, 250);
 
   _COLOR_LIGHT_RED   := rgb(254, 236, 231);
+
+  _COLOR_GRAD2_BEG   := rgb(202, 224, 255);
+  _COLOR_GRAD2_END   := rgb(140, 207, 255);
 
 end.

@@ -29,7 +29,8 @@ uses System.Classes,
      Winapi.PsAPI,
      uPortableExecutable,
      uFrameList,
-     uWorkerThread;
+     uWorkerThread,
+     uFormExtendedLibrariesInformation;
 
 type
   TEnumExportsMode = (
@@ -39,17 +40,19 @@ type
 
   TEnumExportsThread = class(TWorkerThread)
   private
-    FImageFiles    : TStringList;
-    FTab           : TTabSheet;
-    FFrame         : TFrameList;
-    FMode          : TEnumExportsMode;
-    FModules       : TList<Pointer>;
-    FProcessId     : THandle;
-    FGroup         : Boolean;
+    FImageFiles : TStringList;
+    FTab        : TTabSheet;
+    FFrame      : TFrameList;
+    FExtForm    : TFormExtendedLibrariesInformation;
+    FMode       : TEnumExportsMode;
+    FModules    : TList<Pointer>;
+    FProcessId  : THandle;
+    FGroup      : Boolean;
 
     {@C}
     constructor Create(); overload;
     function ProcessImage(const AImageFile : String; const APEParser : TPortableExecutable) : UInt64;
+    procedure ProcessImageExtendedInformation(const AImageFile : String; const AExportsCount : UInt64);
   protected
     {@M}
     procedure ThreadExecute(); override;
@@ -65,13 +68,48 @@ type
 
 implementation
 
-uses VirtualTrees, uFormMain, uFunctions, uConstants, uExceptions;
+uses VirtualTrees, uFormMain, uFunctions, uConstants, uExceptions, System.Hash;
+
+{ TEnumExportsThread.ProcessImageExtendedInformation }
+procedure TEnumExportsThread.ProcessImageExtendedInformation(const AImageFile : String; const AExportsCount : UInt64);
+var pData     : uFormExtendedLibrariesInformation.PTreeData;
+    pNode     : PVirtualNode;
+    AFileSize : UInt64;
+begin
+  if AExportsCount = 0 then
+    Exit();
+  ///
+
+  AFileSize := GetFileSize(AImageFile);
+
+  Synchronize(procedure begin
+    FFrame.ExtForm.IncTotalFilesSize(AFileSize); // TODO Dirty
+    FFrame.ExtForm.IncTotalExports(AExportsCount); // TODO Dirty
+    pNode := FFrame.ExtForm.VST.AddChild(nil); // TODO Dirty
+    pData := pNode.GetData;
+  end);
+
+  pData^.ImagePath    := AImageFile;
+  pData^.ExportsCount := AExportsCount;
+  pData^.FileSize     := AFileSize;
+
+  try
+    pData^.CompanyName  := GetApplicationCompany(AImageFile);
+    pData^.FileVersion  := GetApplicationVersion(AImageFile);
+    pData^.MD5 := System.Hash.THashMD5.GetHashStringFromFile(AImageFile);
+    pData^.SHA1 := System.Hash.THashSHA1.GetHashStringFromFile(AImageFile);
+    pData^.SHA2 := System.Hash.THashSHA2.GetHashStringFromFile(AImageFile);
+  except
+  end;
+
+  pData^.ImageIndex  := SystemFileIcon(AImageFile);
+end;
 
 { TEnumExportsThread.ProcessImage }
 function TEnumExportsThread.ProcessImage(const AImageFile : String; const APEParser : TPortableExecutable) : UInt64;
 var AExport     : TExport;
     pNode       : PVirtualNode;
-    pData       : PTreeData;
+    pData       : uFrameList.PTreeData;
     pParentNode : PVirtualNode;
 begin
   result := 0;
@@ -82,6 +120,9 @@ begin
   ///
 
   try
+    ProcessImageExtendedInformation(AImageFile, APEParser.ExportList.Count); // TODO Dirty
+    ///
+
     if FGroup and (APEParser.ExportList.Count > 0) then begin
       Synchronize(procedure begin
         pParentNode := FFrame.VST.AddChild(nil);
@@ -241,6 +282,8 @@ begin
 
   FFrame := TFrameList.Create(FTab);
   FFrame.Parent := FTab;
+
+  FExtForm := FFrame.ExtForm;
 
   FormMain.Pages.ActivePage := FTab;
 

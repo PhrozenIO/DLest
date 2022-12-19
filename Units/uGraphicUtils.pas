@@ -22,11 +22,49 @@ unit uGraphicUtils;
 interface
 
 uses Winapi.Windows,
-     VCL.Graphics;
+     VCL.Graphics,
+     VCL.Forms;
 
 procedure DrawGradient(const ACanvas: TCanvas; const AColorA : TColor; const AColorB: TColor; const ARect: TRect; const AVertical: Boolean);
+procedure ShowForm(const AHandle : THandle); overload;
+procedure ShowForm(const AForm : TForm); overload;
 
 implementation
+
+uses Winapi.Messages;
+
+{ _.ShowForm }
+procedure ShowForm(const AHandle : THandle);
+begin
+  if AHandle <= 0 then
+    exit();
+
+  if NOT IsWindowVisible(AHandle) then
+    ShowWindow(AHandle, SW_SHOW);
+  ///
+
+  if IsIconic(AHandle) then begin
+    if Application.MainForm.Handle = AHandle then
+      SendMessage(AHandle, WM_SYSCOMMAND, SC_RESTORE, 0)
+    else
+      ShowWindow(AHandle, SW_RESTORE);
+  end;
+
+  ///
+  SetForeGroundWindow(AHandle);
+end;
+
+{ _.ShowForm }
+procedure ShowForm(const AForm : TForm);
+begin
+  if not Assigned(AForm) then
+    exit();
+
+  AForm.Show();
+
+  ///
+  ShowForm(AForm.Handle);
+end;
 
 { _.DrawGradient }
 procedure DrawGradient(const ACanvas: TCanvas; const AColorA : TColor; const AColorB: TColor; const ARect: TRect; const AVertical: Boolean);

@@ -24,7 +24,7 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, OMultiPanel, VirtualTrees,
-  Vcl.VirtualImage, Vcl.StdCtrls, Vcl.Menus;
+  Vcl.VirtualImage, Vcl.StdCtrls, Vcl.Menus, Vcl.ComCtrls, Vcl.ToolWin;
 
 type
   TProcessTreeData = record
@@ -63,6 +63,8 @@ type
     SelectAll1: TMenuItem;
     DeselectAll1: TMenuItem;
     N3: TMenuItem;
+    ToolBar: TToolBar;
+    ToolRefresh: TToolButton;
     procedure VSTProcessChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTProcessFocusChanged(Sender: TBaseVirtualTree;
       Node: PVirtualNode; Column: TColumnIndex);
@@ -106,6 +108,8 @@ type
     procedure DumpReconstructedImageofSelectedModules1Click(Sender: TObject);
     procedure SelectAll1Click(Sender: TObject);
     procedure DeselectAll1Click(Sender: TObject);
+    procedure Refresh1Click(Sender: TObject);
+    procedure ToolRefreshClick(Sender: TObject);
   private
     FTotalModulesSize : UInt64;
 
@@ -114,6 +118,7 @@ type
     procedure OpenProcess(const pNode : PVirtualNode);
     procedure OpenSelectedModulesFromMemory();
     procedure OpenSelectedModulesFromFiles();
+    procedure CreateParams(var Params: TCreateParams); override;
   public
     {@M}
     procedure Reset();
@@ -136,6 +141,16 @@ uses uEnumProcessThread, uEnumExportsThread, uFormMain, uEnumModulesThread,
      uFormThreadManager, uPortableExecutable, VCL.FileCtrl;
 
 {$R *.dfm}
+
+procedure TFormProcessList.CreateParams(var Params: TCreateParams);
+begin
+  inherited;
+  ///
+
+  Params.ExStyle := Params.ExStyle and NOT WS_EX_APPWINDOW;
+
+  Params.WndParent := 0;
+end;
 
 constructor TFormProcessList.Create(AOwner: TComponent);
 begin
@@ -225,6 +240,11 @@ begin
   TEnumProcessThread.Create();
 end;
 
+procedure TFormProcessList.Refresh1Click(Sender: TObject);
+begin
+  self.Refresh();
+end;
+
 procedure TFormProcessList.Reset();
 begin
   VSTProcess.Clear();
@@ -237,6 +257,11 @@ end;
 procedure TFormProcessList.SelectAll1Click(Sender: TObject);
 begin
   VSTModules.SelectAll(True);
+end;
+
+procedure TFormProcessList.ToolRefreshClick(Sender: TObject);
+begin
+  self.Refresh();
 end;
 
 procedure TFormProcessList.VSTModulesBeforeCellPaint(Sender: TBaseVirtualTree;

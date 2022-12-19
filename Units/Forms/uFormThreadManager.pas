@@ -74,6 +74,9 @@ type
   private
     FThreadWatcher : TThreadWatcher;
     FWorkers       : TThreadList<TWorkerThread>;
+
+    {@M}
+    procedure CreateParams(var Params: TCreateParams); override;
   public
     {@M}
     procedure AddWorker(const AThread : TWorkerThread);
@@ -186,6 +189,16 @@ begin
 end;
 
 (* TFormThreadManager *)
+
+procedure TFormThreadManager.CreateParams(var Params: TCreateParams);
+begin
+  inherited;
+  ///
+
+  Params.ExStyle := Params.ExStyle and NOT WS_EX_APPWINDOW;
+
+  Params.WndParent := 0;
+end;
 
 procedure TFormThreadManager.RemoveNode(const AWorker : TWorkerThread);
 var pNode : PVirtualNode;

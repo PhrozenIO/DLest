@@ -17,13 +17,9 @@
 {                                                                              }
 {******************************************************************************}
 
-// Display info about current modules (list) : MD5, SHA1, Signed, COmpany etc..
-// Copy columns
-// Google search with "Library name" or "Library name" + "Export Name"
-// Google search md5, sha1 etc..
-
 (*
- For Next Release (v2.0):
+ For Next Releases (v2.0 and +):
+  - COM Scan.
   - Scan Folder (Regex List File, to have multiple regex for expert search)
   - In process List, option to dump all selected process modules.
   - Improved Tabs Auto Naming.
@@ -35,7 +31,9 @@
   - More comprehensive PE Parser.
   - Upload to VirusTotal.
   - ARM Support.
+  - Improve Speed.
   - More logs.
+  - Extended Libraries Information handled by uEnumExportsThread should be revised. Actual code is dirty.
 *)
 
 unit uFormMain;
@@ -138,7 +136,7 @@ implementation
 
 uses uEnumExportsThread, uFunctions, uFormProcessList, VCL.FileCtrl,
   uFormThreadManager, uScanFilesThread, uFormScanFolder, uFrameList, uFormAbout,
-  uApplication, Winapi.ShlObj;
+  uApplication, Winapi.ShlObj, uGraphicUtils;
 
 {$R *.dfm}
 
@@ -250,7 +248,7 @@ end;
 
 procedure TFormMain.About1Click(Sender: TObject);
 begin
-  FormAbout.Show();
+  FormAbout.ShowModal();
 end;
 
 procedure TFormMain.CloseActiveTab();
@@ -362,7 +360,7 @@ end;
 
 procedure TFormMain.OpenProcess1Click(Sender: TObject);
 begin
-  FormProcessList.ShowModal();
+  ShowForm(FormProcessList);
 end;
 
 procedure TFormMain.RenameActiveTab1Click(Sender: TObject);
