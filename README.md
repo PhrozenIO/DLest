@@ -1,6 +1,6 @@
 # DLest
 
-![banner](Assets\banner.png)
+![banner](Assets/banner.png)
 
 Welcome to DLest, the Portable Executable Exported Functions Manager. This powerful Microsoft Windows application is specifically designed to assist developers and malware analysts with the analysis and manipulation of exported functions in Portable Executable (PE) files, particularly DLLs. With DLest, you can easily enumerate exported functions using a variety of methods, including drag and drop, opening a folder, or recursively scanning a folder with regular expression filtering to only include PE files with specific export function names.
 
