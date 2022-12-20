@@ -39,11 +39,22 @@ object FrameList: TFrameList
     Color = 15790320
     ParentBackground = False
     TabOrder = 1
+    object ButtonSearch: TSpeedButton
+      Left = 840
+      Top = 0
+      Width = 28
+      Height = 19
+      Align = alRight
+      ImageIndex = 6
+      ImageName = 'find'
+      Images = FormMain.VirtualImageList
+      OnClick = ButtonSearchClick
+    end
     object EditRegex: TButtonedEdit
       AlignWithMargins = True
       Left = 1
       Top = 1
-      Width = 866
+      Width = 838
       Height = 17
       Margins.Left = 1
       Margins.Top = 1
@@ -58,7 +69,9 @@ object FrameList: TFrameList
       RightButton.ImageName = 'symbol-cancel'
       TabOrder = 0
       OnChange = EditRegexChange
+      OnKeyDown = EditRegexKeyDown
       OnRightButtonClick = EditRegexRightButtonClick
+      ExplicitWidth = 866
     end
   end
   object VST: TVirtualStringTree

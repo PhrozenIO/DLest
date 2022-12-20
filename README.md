@@ -1,14 +1,14 @@
 # DLest
 
-<p align="center">
-<img src="Assets\banner.png"/>
-</p>
+![](Assets\banner.png)
 
 Welcome to DLest, the Portable Executable Exported Functions Manager. This powerful Microsoft Windows application is specifically designed to assist developers and malware analysts with the analysis and manipulation of exported functions in Portable Executable (PE) files, particularly DLLs. With DLest, you can easily enumerate exported functions using a variety of methods, including drag and drop, opening a folder, or recursively scanning a folder with regular expression filtering to only include PE files with specific export function names.
 
 In addition to parsing PE files stored on disk, DLest also supports the analysis of memory-loaded modules, allowing you to analyze and manipulate exported functions in real time. This makes DLest an invaluable tool for malware analysts during reverse engineering or incident response. You can even dump a reconstructed version of any module for further analysis or reuse.
 
 This application is fully multithreaded, ensuring efficient and fast processing of even large numbers of PE files. Whether you're a developer looking to analyze and manipulate exported functions or a malware analyst in need of a reliable tool to assist with your work, DLest is sure to be a valuable addition to your toolkit. Its name, DLest, reflects its ability to "deleste" you from fastidious work, streamlining and simplifying your tasks.
+
+> This will be my last huge project for 2022 and the entire 2023 year. In 2023, I will be focused on obtaining various offensive security certifications and working on a new version of the Unprotect Project with my friend Thomas Roccia. However, this does not mean that this project or other projects will be unmaintained. I will still be available to offer bug fixes as needed.
 
 ---
 
@@ -29,9 +29,7 @@ This application is fully multithreaded, ensuring efficient and fast processing 
 
 ## Open Dialog
 
-<p align="center">
-<img src="Assets\mode-opend.png"/>
-</p>
+![](Assets\mode-opend.png)
 
 The open file mode in DLest allows you to use the default Microsoft Windows open dialog to select one or more Portable Executable (PE) files to be loaded into the tool. When you select the open file mode, a standard open dialog window will appear, allowing you to browse your computer and select the PE files you want to load.
 
@@ -39,13 +37,9 @@ Once you have selected the desired files, they will be passed through a filterin
 
 Using the open file mode, you can easily load and analyze individual PE files as needed, whether for development or malware analysis purposes. Whether you need to examine a single file or a large batch of files, the open file mode in DLest makes it easy to get started.
 
-> This will be my last huge project for 2022 and the entire 2023 year. In 2023, I will be focused on obtaining various offensive security certifications and working on a new version of the Unprotect Project with my friend Thomas Roccia. However, this does not mean that this project or other projects will be unmaintained. I will still be available to offer bug fixes as needed.
-
 ## Open Folder
 
-<p align="center">
-<img src="Assets\mode-openfolder.png"/>
-</p>
+![](Assets\mode-openfolder.png)
 
 The open folder mode in DLest allows you to quickly scan a single folder and identify all of the valid Portable Executable (PE) files, particularly DLLs, within it. To use this mode, simply select the open folder option and browse to the desired folder using the standard Microsoft Windows folder selection dialog.
 
@@ -55,9 +49,7 @@ The open folder mode is a fast and efficient way to scan a single directory and 
 
 ## Scan Folder
 
-<p align="center">
-<img src="Assets\mode-scan.png"/>
-</p>
+![](Assets\mode-scan.png)
 
 The scan folder mode in DLest allows you to perform a more advanced and comprehensive scan of a folder or directory structure, locating any valid DLL files that offer exported functions. This mode allows you to recursively scan a folder and its subfolders, looking for compatible and valid PE files that offer exported functions.
 
@@ -69,13 +61,9 @@ Whether you need to quickly locate exported functions in a single folder or perf
 
 ## In-Memory Modules
 
-<p align="center">
-<img src="Assets\mode-mem.png"/>
-</p>
+![](Assets\mode-mem.png)
 
-<p align="center">
-<img src="Assets\mode-mem-ex.png"/>
-</p>
+![](Assets\mode-mem-ex.png)
 
 The load from running process mode in DLest allows you to parse the Portable Executable (PE) header for exported functions directly from in-memory modules, rather than from files stored on disk. This can be a useful feature for developers and malware analysts who need to analyze exported functions in real time or who are working with memory-loaded modules that are not stored on disk.
 
@@ -93,9 +81,7 @@ The reconstructed PE image can be saved to a file on your system for later use. 
 
 # Exported Function Filtering
 
-<p align="center">
-<img src="Assets\export-filtering.png"/>
-</p>
+![](Assets\export-filtering.png)
 
 The live exports filtering feature in DLest allows you to use regular expressions to filter the exported functions displayed in the tool in real time. This can be a useful feature for developers and malware analysts who need to quickly locate specific exported functions or who want to exclude certain functions from the list.
 
@@ -105,9 +91,7 @@ While this feature can be very useful, it is worth noting that it may be slower 
 
 # Logs
 
-<p align="center">
-<img src="Assets\logs.png"/>
-</p>
+![](Assets\logs.png)
 
 The log window in DLest is a feature that displays information about any errors or issues that occur while parsing Portable Executable (PE) files or when a target file does not contain exported functions. This can be a useful feature for developers and malware analysts who need to understand why certain files are not being processed correctly or who want to troubleshoot issues with the tool.
 
@@ -117,9 +101,7 @@ By using the log window, you can quickly identify and troubleshoot any problems 
 
 # Extended Libraries Informations
 
-<p align="center">
-<img src="Assets\ex-lib-infos.png"/>
-</p>
+![](Assets\ex-lib-infos.png)
 
 The extended libraries information window in DLest is a feature that displays a list of parsed Portable Executable (PE) files from the current tab context, along with a variety of details about each file. This can be a useful feature for developers and malware analysts who need to quickly access information about the libraries they are working with.
 

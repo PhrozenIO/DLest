@@ -4,7 +4,7 @@ object FormScanFolder: TFormScanFolder
   BorderIcons = [biSystemMenu]
   BorderStyle = bsSingle
   Caption = 'Scan Folder'
-  ClientHeight = 281
+  ClientHeight = 283
   ClientWidth = 472
   Color = clWhite
   DoubleBuffered = True
@@ -19,7 +19,7 @@ object FormScanFolder: TFormScanFolder
   TextHeight = 15
   object PanelBottom: TPanel
     Left = 0
-    Top = 239
+    Top = 241
     Width = 472
     Height = 42
     Align = alBottom
@@ -28,7 +28,7 @@ object FormScanFolder: TFormScanFolder
     ParentBackground = False
     TabOrder = 0
     ExplicitTop = 206
-    ExplicitWidth = 503
+    ExplicitWidth = 458
     object ButtonValidate: TSpeedButton
       AlignWithMargins = True
       Left = 378
@@ -67,20 +67,20 @@ object FormScanFolder: TFormScanFolder
     Left = 0
     Top = 0
     Width = 472
-    Height = 239
+    Height = 241
     Align = alClient
     BevelOuter = bvNone
     Color = clWhite
     ParentBackground = False
     TabOrder = 1
-    ExplicitWidth = 503
+    ExplicitWidth = 458
     ExplicitHeight = 206
     object PanelCore: TPanel
       AlignWithMargins = True
       Left = 8
       Top = 8
       Width = 456
-      Height = 223
+      Height = 225
       Margins.Left = 8
       Margins.Top = 8
       Margins.Right = 8
@@ -90,14 +90,14 @@ object FormScanFolder: TFormScanFolder
       Color = clWhite
       ParentBackground = False
       TabOrder = 0
-      ExplicitWidth = 487
+      ExplicitWidth = 442
       ExplicitHeight = 190
       object PanelForm: TPanel
         AlignWithMargins = True
         Left = 8
         Top = 0
         Width = 448
-        Height = 223
+        Height = 225
         Margins.Left = 8
         Margins.Top = 0
         Margins.Right = 0
@@ -106,7 +106,7 @@ object FormScanFolder: TFormScanFolder
         BevelOuter = bvNone
         Color = clWhite
         TabOrder = 0
-        ExplicitWidth = 477
+        ExplicitWidth = 434
         ExplicitHeight = 190
         object Label1: TLabel
           AlignWithMargins = True
@@ -159,11 +159,11 @@ object FormScanFolder: TFormScanFolder
           RightButton.Visible = True
           TabOrder = 0
           OnRightButtonClick = EditDirectoryRightButtonClick
-          ExplicitWidth = 477
+          ExplicitWidth = 434
         end
         object PanelWarning: TPanel
           Left = 0
-          Top = 163
+          Top = 165
           Width = 448
           Height = 60
           Align = alBottom
@@ -172,18 +172,18 @@ object FormScanFolder: TFormScanFolder
           ParentColor = True
           TabOrder = 1
           ExplicitTop = 130
-          ExplicitWidth = 477
+          ExplicitWidth = 434
           object Label4: TLabel
             AlignWithMargins = True
             Left = 20
-            Top = 15
+            Top = 0
             Width = 428
-            Height = 45
+            Height = 60
             Margins.Left = 20
             Margins.Top = 0
             Margins.Right = 0
             Margins.Bottom = 0
-            Align = alBottom
+            Align = alClient
             Caption = 
               'Deep Scan is a mode that scans for compatible and valid portable' +
               ' executable (PE) files on a computer or device. This includes no' +
@@ -196,8 +196,8 @@ object FormScanFolder: TFormScanFolder
             Font.Style = []
             ParentFont = False
             WordWrap = True
-            ExplicitTop = 0
-            ExplicitWidth = 469
+            ExplicitTop = -1
+            ExplicitHeight = 45
           end
           object IconInfo: TVirtualImage
             AlignWithMargins = True
@@ -225,7 +225,7 @@ object FormScanFolder: TFormScanFolder
           Align = alTop
           Caption = 'Recursive Lookup'
           TabOrder = 2
-          ExplicitWidth = 477
+          ExplicitWidth = 434
         end
         object CheckBoxDeepScan: TCheckBox
           AlignWithMargins = True
@@ -240,7 +240,7 @@ object FormScanFolder: TFormScanFolder
           Align = alTop
           Caption = 'Deep Scan'
           TabOrder = 3
-          ExplicitWidth = 477
+          ExplicitWidth = 434
         end
         object EditRegex: TButtonedEdit
           Left = 0
@@ -255,7 +255,7 @@ object FormScanFolder: TFormScanFolder
           RightButton.Visible = True
           TabOrder = 4
           OnRightButtonClick = EditDirectoryRightButtonClick
-          ExplicitWidth = 477
+          ExplicitWidth = 434
         end
       end
     end

@@ -67,6 +67,7 @@ type
     Copy1: TMenuItem;
     N7: TMenuItem;
     LibrariesViewExtendedInfo1: TMenuItem;
+    ButtonSearch: TSpeedButton;
     procedure VSTChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode;
@@ -102,6 +103,9 @@ type
     procedure SearchAPIName1Click(Sender: TObject);
     procedure SearchBoth1Click(Sender: TObject);
     procedure LibrariesViewExtendedInfo1Click(Sender: TObject);
+    procedure ButtonSearchClick(Sender: TObject);
+    procedure EditRegexKeyDown(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
   private
     FGrouped      : Boolean;
     FTotalExports : UInt64;
@@ -114,6 +118,10 @@ type
     function HaveExportInSelection() : Boolean;
     function HiddenNodeCount() : Cardinal;
     function VisibleNodeCount() : Cardinal;
+  private
+    {@M}
+    procedure DoSearch();
+    procedure SetTotalExports(const AValue : UInt64);
   public
     {@C}
     constructor Create(AOwner : TComponent); override;
@@ -125,9 +133,11 @@ type
 
     {@G/S}
     property Grouped      : Boolean                           read FGrouped      write FGrouped;
-    property TotalExports : UInt64                            read FTotalExports write FTotalExports;
+    property TotalExports : UInt64                            read FTotalExports write SetTotalExports;
     property ExtForm      : TFormExtendedLibrariesInformation read FExtForm      write FExtForm;
   end;
+
+  const AUTO_SEARCH_DELTA = 1000;
 
 implementation
 
@@ -136,6 +146,23 @@ uses uFormMain, uConstants, System.Math, uGraphicUtils, System.RegularExpression
      VCL.FileCtrl, uVirtualStringTreeUtils, VCL.Clipbrd;
 
 {$R *.dfm}
+
+procedure TFrameList.DoSearch();
+var ADoReset : Boolean;
+begin
+  ADoReset := Length(EditRegex.Text) = 0;
+
+  ///
+  FilterList(ADoReset);
+end;
+
+procedure TFrameList.SetTotalExports(const AValue : UInt64);
+begin
+  FTotalExports := AValue;
+  ///
+
+  ButtonSearch.Visible := FTotalExports > AUTO_SEARCH_DELTA;
+end;
 
 procedure TFrameList.CopyToClipboard(ASender : TObject);
 var pData    : PTreeData;
@@ -381,6 +408,8 @@ begin
 
   FExtForm := TFormExtendedLibrariesInformation.Create(FormMain);
 
+  ButtonSearch.Visible := False;
+
   ///
   InitializeCopyPopupMenu(VST, self.Copy1, self.CopyToClipboard);
 end;
@@ -392,6 +421,11 @@ begin
 
   ///
   inherited Destroy();
+end;
+
+procedure TFrameList.ButtonSearchClick(Sender: TObject);
+begin
+  DoSearch();
 end;
 
 procedure TFrameList.ClearSelection1Click(Sender: TObject);
@@ -410,12 +444,21 @@ begin
 end;
 
 procedure TFrameList.EditRegexChange(Sender: TObject);
-var ADoReset : Boolean;
 begin
-  ADoReset := Length(EditRegex.Text) = 0;
+  if FTotalExports <= AUTO_SEARCH_DELTA then
+    DoSearch();
+end;
 
+procedure TFrameList.EditRegexKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  if FTotalExports <= AUTO_SEARCH_DELTA then
+    Exit();
   ///
-  FilterList(ADoReset);
+
+  case Key of
+    13 : DoSearch();
+  end;
 end;
 
 procedure TFrameList.EditRegexRightButtonClick(Sender: TObject);
@@ -615,7 +658,7 @@ begin
     AColorA := _COLOR_GRAD1_BEG;
     AColorB := _COLOR_GRAD1_END;
 
-    if pData^.ExportCount = 0 then
+    if (pData^.ExportCount = 0) or (FTotalExports = 0) then
       AProgress.Width := 0
     else
       AProgress.Width := (AProgress.Width * pData^.ExportCount) div FTotalExports;
