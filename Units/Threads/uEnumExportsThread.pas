@@ -181,7 +181,7 @@ var APEParser     : TPortableExecutable;
       E.Message := Format('Could not parse:"%s", error:"%s"', [AImageFile, E.Message]);
       ///
 
-      Queue(procedure begin
+      Synchronize(procedure begin
         FormMain.OnException(self, E);
       end);
     end;

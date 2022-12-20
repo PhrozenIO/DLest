@@ -158,6 +158,9 @@ end;
 procedure TFormMain.OnException(Sender : TObject; E : Exception);
 begin
   Log(E.Message, Sender, llException);
+
+  ///
+  ShowForm(FormLogs);
 end;
 
 procedure TFormMain.ReloadasAdministrator1Click(Sender: TObject);
