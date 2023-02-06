@@ -71,7 +71,6 @@ object FrameList: TFrameList
       OnChange = EditRegexChange
       OnKeyDown = EditRegexKeyDown
       OnRightButtonClick = EditRegexRightButtonClick
-      ExplicitWidth = 866
     end
   end
   object VST: TVirtualStringTree
@@ -147,6 +146,11 @@ object FrameList: TFrameList
         Position = 4
         Text = 'DLL Image Path'
         Width = 300
+      end
+      item
+        Position = 5
+        Text = 'Export Type'
+        Width = 150
       end>
   end
   object PopupMenu: TPopupMenu

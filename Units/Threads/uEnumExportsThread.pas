@@ -107,7 +107,7 @@ end;
 
 { TEnumExportsThread.ProcessImage }
 function TEnumExportsThread.ProcessImage(const AImageFile : String; const APEParser : TPortableExecutable) : UInt64;
-var AExport     : TExport;
+var AExport     : TExportEntry;
     pNode       : PVirtualNode;
     pData       : uFrameList.PTreeData;
     pParentNode : PVirtualNode;
@@ -153,7 +153,12 @@ begin
         end);
 
         pData^.ImagePath   := AImageFile;
-        pData^.ExportEntry := TExport.Create(AExport);
+
+        if AExport is TPEExportEntry then
+          pData^.ExportEntry := TPEExportEntry.Create(TPEExportEntry(AExport))
+        else if AExport is TCOMExportEntry then
+          pData^.ExportEntry := TCOMExportEntry.Create(TCOMExportEntry(AExport));
+
         pData^.StateIndex  := -1;
         pData^.ExportCount := 0;
       end;
@@ -208,7 +213,7 @@ begin
           if Terminated then
             break;
           try
-            APEParser := TPortableExecutable.CreateFromFile(AImageFile);
+            APEParser := TPortableExecutable.CreateFromFile(AImageFile, True); // TODO
             try
               Inc(ATotalExports, ProcessImage(AImageFile, APEParser));
             finally

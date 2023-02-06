@@ -19,7 +19,6 @@
 
 (*
  For Next Releases (v2.0 and +):
-  - COM Scan.
   - Scan Folder (Regex List File, to have multiple regex for expert search)
   - In process List, option to dump all selected process modules.
   - Improved Tabs Auto Naming.
@@ -39,6 +38,9 @@
 unit uFormMain;
 
 interface
+
+continuer a implémenter COM, cleaner, rendre plus opti
+faire les options COM lib
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
@@ -88,6 +90,11 @@ type
     N5: TMenuItem;
     ToolButtonAdmin: TToolButton;
     SeparatorAdmin: TToolButton;
+    Options1: TMenuItem;
+    ScanCOMTypesLibraries1: TMenuItem;
+    IncludeCOMMethods1: TMenuItem;
+    IncludeCOMProperties1: TMenuItem;
+    ScanExportedFunctions1: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure Open1Click(Sender: TObject);
     procedure OpenProcess1Click(Sender: TObject);

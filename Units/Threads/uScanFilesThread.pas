@@ -59,7 +59,7 @@ var AFiles         : TStringList;
     AFile          : String;
     AValidated     : Boolean;
     AParser        : TPortableExecutable;
-    AExport        : TExport;
+    AExport        : TExportEntry;
 begin
   Queue(procedure begin
     FForm.Show();
