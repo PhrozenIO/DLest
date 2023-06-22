@@ -40,14 +40,15 @@ type
 
   TEnumExportsThread = class(TWorkerThread)
   private
-    FImageFiles : TStringList;
-    FTab        : TTabSheet;
-    FFrame      : TFrameList;
-    FExtForm    : TFormExtendedLibrariesInformation;
-    FMode       : TEnumExportsMode;
-    FModules    : TList<Pointer>;
-    FProcessId  : THandle;
-    FGroup      : Boolean;
+    FImageFiles  : TStringList;
+    FTab         : TTabSheet;
+    FFrame       : TFrameList;
+    FExtForm     : TFormExtendedLibrariesInformation;
+    FMode        : TEnumExportsMode;
+    FModules     : TList<Pointer>;
+    FProcessId   : THandle;
+    FGroup       : Boolean;
+    FScanOptions : TScanOptions;
 
     {@C}
     constructor Create(); overload;
@@ -213,7 +214,7 @@ begin
           if Terminated then
             break;
           try
-            APEParser := TPortableExecutable.CreateFromFile(AImageFile, True); // TODO
+            APEParser := TPortableExecutable.CreateFromFile(AImageFile, FScanOptions);
             try
               Inc(ATotalExports, ProcessImage(AImageFile, APEParser));
             finally
@@ -242,7 +243,7 @@ begin
                 AImageFile := Format('Unknown Module (0x%p)', [pModule]);
               end;
 
-              APEParser := TPortableExecutable.CreateFromMemory(hProcess, pModule);
+              APEParser := TPortableExecutable.CreateFromMemory(hProcess, pModule, FScanOptions);
               try
                 Inc(ATotalExports, ProcessImage(AImageFile, APEParser));
               finally
@@ -293,6 +294,8 @@ begin
   FormMain.Pages.ActivePage := FTab;
 
   FModules := TList<Pointer>.Create();
+
+  FScanOptions := FormMain.ScanOptions;
 
   FMode := eemFromFile;
 end;

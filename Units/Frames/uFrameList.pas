@@ -234,7 +234,7 @@ begin
 
 
       case TMenuItem(ASender).Tag of
-        0 : AStrings.Add(pData^.ExportEntry.Name);
+        0 : AStrings.Add(pData^.ExportEntry.DisplayName);
 
         1 : begin
           if pData^.ExportEntry is TPEExportEntry then
@@ -253,7 +253,7 @@ begin
           // TODO
           if pData^.ExportEntry is TPEExportEntry then
             AStrings.Add(Format('name:%s, address:0x%p, rel_address:0x%p, ordinal:%d, path:"%s"', [
-              pData^.ExportEntry.Name,
+              pData^.ExportEntry.DisplayName,
               Pointer(TPEExportEntry(pData^.ExportEntry).Address),
               Pointer(TPEExportEntry(pData^.ExportEntry).RelativeAddress),
               pData^.ExportEntry.Ordinal,
@@ -261,7 +261,7 @@ begin
             ]))
           else if pData^.ExportEntry is TCOMExportEntry then
             AStrings.Add(Format('name:%s, ordinal:%d, path:"%s"', [
-              pData^.ExportEntry.Name,
+              pData^.ExportEntry.DisplayName,
               pData^.ExportEntry.Ordinal,
               pData^.ImagePath
             ]))
@@ -401,7 +401,7 @@ begin
       Include(pNode.States, vsVisible);
 
       if not AReset then begin
-        if TRegEx.IsMatch(pData^.ExportEntry.Name, EditRegex.Text) then
+        if TRegEx.IsMatch(pData^.ExportEntry.DisplayName, EditRegex.Text) then
           Include(pNode.States, vsVisible)
         else begin
           Exclude(pNode.States, vsVisible);
@@ -627,7 +627,7 @@ begin
     Exit();
 
   ///
-  GoogleSearch(Format('"%s"', [pData^.ExportEntry.Name]));
+  GoogleSearch(Format('"%s"', [pData^.ExportEntry.DisplayName]));
 end;
 
 procedure TFrameList.SearchBoth1Click(Sender: TObject);
@@ -645,7 +645,7 @@ begin
   ///
   GoogleSearch(Format('"%s"+"%s"', [
     ExtractFileName(pData^.ImagePath),
-    ExtractFileName(pData^.ExportEntry.Name)
+    ExtractFileName(pData^.ExportEntry.DisplayName)
   ]));
 end;
 
@@ -786,7 +786,7 @@ begin
     end;
 
     case Column of
-      0 : result := CompareText(pData1^.ExportEntry.Name, pData2^.ExportEntry.Name);
+      0 : result := CompareText(pData1^.ExportEntry.DisplayName, pData2^.ExportEntry.DisplayName);
 
       1 : begin
         result := CompareValue(AAddress1, AAddress2);
@@ -883,7 +883,7 @@ begin
 
   if Assigned(pData.ExportEntry) then begin
     case Column of
-      0 : CellText := pData^.ExportEntry.Name;
+      0 : CellText := pData^.ExportEntry.DisplayName;
 
       1 : begin
         if pData^.ExportEntry is TPEExportEntry then

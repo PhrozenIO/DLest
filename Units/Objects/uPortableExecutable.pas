@@ -30,6 +30,14 @@ uses Winapi.Windows,
      Winapi.ActiveX;
 
 type
+  TScanOption = (
+    soExportedFunctions,
+    soCOMProperties,
+    soCOMMethods,
+    soCOMUnknown
+  );
+  TScanOptions = set of TScanOption;
+
   TPEHeaderSectionNature = (
     pesnNone,
     pesnDosHeader,
@@ -82,6 +90,9 @@ type
   private
     FName    : String;
     FOrdinal : Longint;
+
+    {@M}
+    function GetDisplayName() : string; virtual;
   public
     {@C}
     constructor Create();
@@ -93,6 +104,9 @@ type
     {@G/S}
     property Name    : String  read FName    write FName;
     property Ordinal : Longint read FOrdinal write FOrdinal;
+
+    {@G}
+    property DisplayName : String read GetDisplayName;
   end;
 
   TCOMKind = (
@@ -105,6 +119,9 @@ type
   private
     FTypeName : String;
     FCOMKind  : TCOMKind;
+
+    {@M}
+    function GetDisplayName() : String; override;
   public
     {@C}
     constructor Create(const ATypeName : String = ''); overload;
@@ -115,7 +132,7 @@ type
     function ToJson() : ISuperObject; override;
 
     {@/S}
-    property COMKind  : TCOMKind read FCOMKind  write FCOMKind  default comUnknown;
+    property COMKind  : TCOMKind read FCOMKind  write FCOMKind;
     property TypeName : String   read FTypeName write FTypeName;
   end;
 
@@ -174,7 +191,7 @@ type
 
     FImportDataDirectory       : TImageDataDirectory;
 
-    FScanCOMTypesLibraries     : Boolean;
+    FScanOptions               : TScanOptions;
 
     {@C}
     constructor Create();
@@ -196,9 +213,9 @@ type
     procedure Parse();
   public
     {@C}
-    constructor CreateFromFile(const AFileName : String; const AScanCOMTypesLibraries : Boolean = False);
-    constructor CreateFromMemory(const AProcessId : Cardinal; const ABaseAddress : Pointer); overload;
-    constructor CreateFromMemory(const AProcessHandle : THandle; const ABaseAddress : Pointer); overload;
+    constructor CreateFromFile(const AFileName : String; const AScanOptions : TScanOptions = []);
+    constructor CreateFromMemory(const AProcessId : Cardinal; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []); overload;
+    constructor CreateFromMemory(const AProcessHandle : THandle; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []); overload;
 
     destructor Destroy(); override;
 
@@ -306,7 +323,7 @@ begin
   FHandle                := INVALID_HANDLE_VALUE;
   FCloseHandle           := True;
   FBaseOffset            := 0;
-  FScanCOMTypesLibraries := False;
+  FScanOptions           := [];
   FFileName              := '';
 
   FDosStubOffset             := 0;
@@ -540,8 +557,8 @@ begin
 
   Read(@FImageExportDirectory, SizeOf(TImageExportDirectory));
 
-  if (FImageExportDirectory.NumberOfFunctions > 0) and
-      (FImageExportDirectory.NumberOfNames > 0) then begin
+  if ((FImageExportDirectory.NumberOfFunctions > 0) and
+      (FImageExportDirectory.NumberOfNames > 0)) and ((FScanOptions = []) or (soExportedFunctions in FScanOptions)) then begin
     FExports.Clear();
 
     for I := 0 to FImageExportDirectory.NumberOfNames {??? NumberOfFunctions ???} -1 do begin
@@ -599,7 +616,11 @@ begin
     Read COM Objects Methods + Properties (Only possible through physical path reading)
     TODO: Parse from memory.
   *)
-  if (FParseFrom = pfFile) and (FScanCOMTypesLibraries) then
+  if (FParseFrom = pfFile) and ((FScanOptions = []) or (
+    (soCOMMethods in FScanOptions) or
+    (soCOMProperties in FScanOptions) or
+    (soCOMUnknown in FScanOptions)
+  )) then
     self.ScanCOMTypesLibraries();
 
   ///
@@ -638,13 +659,13 @@ begin
         if AResult <> S_OK then
           continue;
         try
-          case ptrTypeAttr^.typekind of
+          (*case ptrTypeAttr^.typekind of
             TKIND_INTERFACE,
             TKIND_DISPATCH : ;
 
             else
               continue;
-          end;
+          end;*)
           ///
 
           ATypeInfo.GetDocumentation(-1, @pTypeName, nil, nil, nil);
@@ -679,12 +700,23 @@ begin
                 AExport.Ordinal := ptrFuncDesc^.memid;
 
                 case ptrFuncDesc.invkind of
-                  INVOKE_FUNC: AExport.COMKind := comkMethod;
+                  INVOKE_FUNC:
+                    AExport.COMKind := comkMethod;
 
-                  INVOKE_PROPERTYGET(*,
+                  INVOKE_PROPERTYGET,
                   INVOKE_PROPERTYPUT,
-                  INVOKE_PROPERTYPUTREF*): AExport.COMKind := comkProperty;
+                  INVOKE_PROPERTYPUTREF:
+                    AExport.COMKind := comkProperty;
+
+                  else
+                    AExport.COMKind := comUnknown;
                 end;
+
+                if (FScanOptions <> []) and
+                   (((not (soCOMUnknown in FScanOptions)) and (AExport.COMKind = comUnknown)) or
+                   ((not (soCOMMethods in FScanOptions)) and (AExport.COMKind = comkMethod)) or
+                   ((not (soCOMProperties in FScanOptions)) and (AExport.COMKind = comkProperty)))
+                  then continue;
 
                 ///
                 FExports.Add(AExport);
@@ -705,15 +737,15 @@ begin
 end;
 
 { TPortableExecutable.CreateFromFile }
-constructor TPortableExecutable.CreateFromFile(const AFileName : String; const AScanCOMTypesLibraries : Boolean = False);
+constructor TPortableExecutable.CreateFromFile(const AFileName : String; const AScanOptions : TScanOptions = []);
 var AOldWow64RedirectionValue : LongBool;
 begin
   Create();
   ///
 
-  FParseFrom             := pfFile;
-  FScanCOMTypesLibraries := AScanCOMTypesLibraries;
-  FFileName              := AFileName;
+  FParseFrom := pfFile;
+  FFileName  := AFileName;
+  FScanOptions := AScanOptions;
 
 // TODO In Option
 //  if Assigned(Wow64DisableWow64FsRedirection) then
@@ -740,7 +772,7 @@ begin
 end;
 
 { TPortableExecutable.CreateFromMemory }
-constructor TPortableExecutable.CreateFromMemory(const AProcessId : Cardinal; const ABaseAddress : Pointer);
+constructor TPortableExecutable.CreateFromMemory(const AProcessId : Cardinal; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []);
 var AProcessHandle : THandle;
 begin
   AProcessHandle := OpenProcess(
@@ -752,10 +784,10 @@ begin
     raise EWindowsException.Create('OpenProcess');
   ///
 
-  self.CreateFromMemory(AProcessHandle, ABaseAddress);
+  self.CreateFromMemory(AProcessHandle, ABaseAddress, AScanOptions);
 end;
 
-constructor TPortableExecutable.CreateFromMemory(const AProcessHandle : THandle; const ABaseAddress : Pointer);
+constructor TPortableExecutable.CreateFromMemory(const AProcessHandle : THandle; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []);
 begin
   Create();
   ///
@@ -763,6 +795,7 @@ begin
   FParseFrom   := pfMemory;
 
   FHandle      := AProcessHandle;
+  FScanOptions := AScanOptions;
   FCloseHandle := False;
 
   FBaseOffset  := UInt64(ABaseAddress);
@@ -1136,6 +1169,12 @@ begin
   result.S['name']    := FName;
 end;
 
+{ TExportEntry.GetDisplayName }
+function TExportEntry.GetDisplayName() : string;
+begin
+  result := self.Name;
+end;
+
 (* TCOMExportEntry Class *)
 
 { TCOMExportEntry.Create }
@@ -1144,6 +1183,7 @@ begin
   inherited Create();
   ///
 
+  FCOMKind := comUnknown;
   FTypeName := ATypeName;
 end;
 
@@ -1175,6 +1215,18 @@ begin
 
   result.S['type_name'] := FTypeName;
   result.I['com_kind']  := Integer(FCOMKind);
+end;
+
+{ TCOMExportEntry.GetDisplayName }
+function TCOMExportEntry.GetDisplayName() : String;
+begin
+  if self.TypeName.IsEmpty then
+    result := inherited
+  else
+    result := Format('%s::%s', [
+      self.TypeName,
+      self.Name
+    ]);
 end;
 
 (* TPEExportEntry Class *)

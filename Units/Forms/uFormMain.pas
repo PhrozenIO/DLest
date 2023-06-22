@@ -35,19 +35,26 @@
   - Extended Libraries Information handled by uEnumExportsThread should be revised. Actual code is dirty.
 *)
 
+(*
+  Changelog:
+    # June 2023
+      - Enumerate COM Object (Method & Properties) - File only (not in-memory yet)
+      - Possibility to select which items user want to enumerate (exported function, com properties or methods)
+      - Few application icons updated for more confort.
+      - Virtual TreeView component updated to version 7.6.4.
+      - Compiled with Delphi 11.3.
+*)
+
 unit uFormMain;
 
 interface
-
-continuer a implémenter COM, cleaner, rendre plus opti
-faire les options COM lib
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, VirtualTrees, Vcl.ComCtrls, Vcl.ToolWin,
   Vcl.Menus, Vcl.VirtualImageList, System.ImageList, Vcl.ImgList,
   Vcl.BaseImageCollection, Vcl.ImageCollection, Winapi.ShellAPI,
-  Vcl.ExtCtrls, Generics.Collections, uFormLogs;
+  Vcl.ExtCtrls, Generics.Collections, uFormLogs, uPortableExecutable;
 
 type
   TFormMain = class(TForm)
@@ -95,6 +102,8 @@ type
     IncludeCOMMethods1: TMenuItem;
     IncludeCOMProperties1: TMenuItem;
     ScanExportedFunctions1: TMenuItem;
+    N6: TMenuItem;
+    IncludeCOMUnknown1: TMenuItem;
     procedure FormCreate(Sender: TObject);
     procedure Open1Click(Sender: TObject);
     procedure OpenProcess1Click(Sender: TObject);
@@ -123,6 +132,8 @@ type
     procedure CloseTab(const ATab : TTabSheet);
 
     procedure WMDropFiles(var AMessage: TMessage); message WM_DROPFILES;
+
+    function GetScanOptions() : TScanOptions;
   public
     {@M}
     procedure CloseTabs();
@@ -134,6 +145,9 @@ type
     procedure Warn(const AMessage : String; const Sender : TObject);
 
     procedure ShowInformation(const AMessage : String);
+
+    {@G}
+    property ScanOptions : TScanOptions read GetScanOptions;
   end;
 
 var
@@ -146,6 +160,24 @@ uses uEnumExportsThread, uFunctions, uFormProcessList, VCL.FileCtrl,
   uApplication, Winapi.ShlObj, uGraphicUtils;
 
 {$R *.dfm}
+
+function TFormMain.GetScanOptions(): TScanOptions;
+begin
+  result := [];
+  ///
+
+  if self.ScanExportedFunctions1.Checked then
+    Include(result, soExportedFunctions);
+
+  if self.IncludeCOMMethods1.Checked then
+    Include(result, soCOMMethods);
+
+  if self.IncludeCOMProperties1.Checked then
+    Include(result, soCOMProperties);
+
+  if self.IncludeCOMUnknown1.Checked then
+    Include(result, soCOMUnknown);
+end;
 
 procedure TFormMain.ShowInformation(const AMessage : String);
 begin
