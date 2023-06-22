@@ -56,10 +56,10 @@ var AJson              : ISuperObject;
     AJsonImage         : ISuperObject;
     AJsonImages        : ISuperArray;
     AJsonExports       : ISuperArray;
-    AItems             : TObjectDictionary<String, TObjectList<TExport>>;
+    AItems             : TObjectDictionary<String, TObjectList<TExportEntry>>;
     AImagePath         : String;
-    AExports           : TObjectList<TExport>;
-    AExport            : TExport;
+    AExports           : TObjectList<TExportEntry>;
+    AExport            : TExportEntry;
     ATotalExportsCount : UInt64;
     ADestination       : String;
 begin
@@ -75,15 +75,15 @@ begin
       FFrame.BeginUpdate();
     end);
     try
-      AItems := TObjectDictionary<String, TObjectList<TExport>>.Create([doOwnsValues]);
+      AItems := TObjectDictionary<String, TObjectList<TExportEntry>>.Create([doOwnsValues]);
       try
         // We must unfortunately synchronize, to avoid possible collision.
         // Even if it is really really really unlikely to happened...
         Synchronize(procedure begin
           var pNode    : PVirtualNode;
           var pData    : PTreeData;
-          var AExports : TObjectList<TExport>;
-          var AExport  : TExport;
+          var AExports : TObjectList<TExportEntry>;
+          var AExport  : TExportEntry;
 
           for pNode in FFrame.VST.Nodes do begin
             pData := pNode.GetData;
@@ -110,12 +110,13 @@ begin
             end;
 
             if not AItems.TryGetValue(pData^.ImagePath, AExports) then begin
-              AExports := TObjectList<TExport>.Create(True);
+              AExports := TObjectList<TExportEntry>.Create(True);
 
               AItems.Add(pData^.ImagePath, AExports);
             end;
 
-            AExports.Add(TExport.Create(pData^.ExportEntry));
+            if pData^.ExportEntry is TPEExportEntry then
+              AExports.Add(TPEExportEntry.Create(TPEExportEntry(pData^.ExportEntry)));  // TODO
           end;
         end);
 
@@ -162,7 +163,8 @@ begin
               break;
             ///
 
-            AJsonExports.Add(AExport.ToJson());
+            if AExport is TPEExportEntry then
+              AJsonExports.Add(TPEExportEntry(AExport).ToJson());  // TODO
           end;
 
           AJsonImage.A['exports'] := AJsonExports;

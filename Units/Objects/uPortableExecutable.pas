@@ -26,9 +26,18 @@ interface
 uses Winapi.Windows,
      System.Classes,
      Generics.Collections,
-     XSuperObject;
+     XSuperObject,
+     Winapi.ActiveX;
 
 type
+  TScanOption = (
+    soExportedFunctions,
+    soCOMProperties,
+    soCOMMethods,
+    soCOMUnknown
+  );
+  TScanOptions = set of TScanOption;
+
   TPEHeaderSectionNature = (
     pesnNone,
     pesnDosHeader,
@@ -77,28 +86,75 @@ type
     property ImageSectionHeader : TImageSectionHeader read FImageSectionHeader;
   end;
 
-  TExport = class(TPersistent)
+  TExportEntry = class(TPersistent)
   private
-    FOrdinal         : Word;
-    FRelativeAddress : UInt64;
-    FAddress         : UInt64;
-    FName            : AnsiString;
-    FForwarded       : Boolean;
-    FForwardName     : AnsiString;
-  public
+    FName    : String;
+    FOrdinal : Longint;
+
     {@M}
-    constructor Create(); overload;
-    constructor Create(const AExport : TExport); overload;
-    function ToJson() : ISuperObject;
+    function GetDisplayName() : string; virtual;
+  public
+    {@C}
+    constructor Create();
 
     {@M}
     procedure Assign(ASource : TPersistent); override;
+    function ToJson() : ISuperObject; virtual;
+
+    {@G/S}
+    property Name    : String  read FName    write FName;
+    property Ordinal : Longint read FOrdinal write FOrdinal;
 
     {@G}
-    property Ordinal         : Word       read FOrdinal         write FOrdinal;
+    property DisplayName : String read GetDisplayName;
+  end;
+
+  TCOMKind = (
+    comUnknown,
+    comkMethod,
+    comkProperty
+  );
+
+  TCOMExportEntry = class(TExportEntry)
+  private
+    FTypeName : String;
+    FCOMKind  : TCOMKind;
+
+    {@M}
+    function GetDisplayName() : String; override;
+  public
+    {@C}
+    constructor Create(const ATypeName : String = ''); overload;
+    constructor Create(const AExport : TCOMExportEntry); overload;
+
+    {@M}
+    procedure Assign(ASource : TPersistent); override;
+    function ToJson() : ISuperObject; override;
+
+    {@/S}
+    property COMKind  : TCOMKind read FCOMKind  write FCOMKind;
+    property TypeName : String   read FTypeName write FTypeName;
+  end;
+
+  TPEExportEntry = class(TExportEntry)
+  private
+    FRelativeAddress : UInt64;
+    FAddress         : UInt64;
+    FForwarded       : Boolean;
+    FForwardName     : AnsiString;
+  public
+    {@C}
+    constructor Create(); overload;
+    constructor Create(const AExport : TPEExportEntry); overload;
+
+    {@M}
+    procedure Assign(ASource : TPersistent); override;
+    function ToJson() : ISuperObject; override;
+
+    {@G/S}
     property RelativeAddress : UInt64     read FRelativeAddress write FRelativeAddress;
     property Address         : UInt64     read FAddress         write FAddress;
-    property Name            : AnsiString read FName            write FName;
+
     property Forwarded       : Boolean    read FForwarded       write FForwarded;
     property ForwardName     : AnsiString read FForwardName     write FForwardName;
   end;
@@ -107,6 +163,7 @@ type
   private
     FSuccess                   : Boolean;
     FParseFrom                 : TParseFrom;
+    FFileName                  : String;
 
     FHandle                    : THandle;
     FCloseHandle               : Boolean;
@@ -127,12 +184,14 @@ type
     FImageOptionalHeader       : TImageOptionalHeader;
 
     FSections                  : TObjectList<TSection>;
-    FExports                   : TObjectList<TExport>;
+    FExports                   : TObjectList<TExportEntry>;
 
     FExportDataDirectory       : TImageDataDirectory;
     FImageExportDirectory      : TImageExportDirectory;
 
     FImportDataDirectory       : TImageDataDirectory;
+
+    FScanOptions               : TScanOptions;
 
     {@C}
     constructor Create();
@@ -143,8 +202,10 @@ type
     function GetImageFileHeader() : TImageFileHeader;
     function GetImageOptionalHeader() : TImageOptionalHeader;
     function GetSections() : TObjectList<TSection>;
-    function GetExports() : TObjectList<TExport>;
+    function GetExports() : TObjectList<TExportEntry>;
     function GetIs64() : Boolean;
+
+    procedure ScanCOMTypesLibraries();
 
     procedure RaiseUnparsedHeader();
 
@@ -152,9 +213,9 @@ type
     procedure Parse();
   public
     {@C}
-    constructor CreateFromFile(const AFileName : String);
-    constructor CreateFromMemory(const AProcessId : Cardinal; const ABaseAddress : Pointer); overload;
-    constructor CreateFromMemory(const AProcessHandle : THandle; const ABaseAddress : Pointer); overload;
+    constructor CreateFromFile(const AFileName : String; const AScanOptions : TScanOptions = []);
+    constructor CreateFromMemory(const AProcessId : Cardinal; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []); overload;
+    constructor CreateFromMemory(const AProcessHandle : THandle; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []); overload;
 
     destructor Destroy(); override;
 
@@ -168,15 +229,15 @@ type
     function SaveToFile(const ADestinationFile : String) : Boolean;
 
     {@G}
-    property ImageDosHeader      : TImageDosHeader       read GetImageDosHeader;
-    property ImageNtSignature    : DWORD                 read GetImageNtSignature;
-    property ImageFileHeader     : TImageFileHeader      read GetImageFileHeader;
-    property ImageOptionalHeader : TImageOptionalHeader  read GetImageOptionalHeader;
-    property Sections            : TObjectList<TSection> read GetSections;
-    property ExportList          : TObjectList<TExport>  read GetExports;
-    property BaseOffset          : UInt64                read FBaseOffset;
-    property ParseFrom           : TParseFrom            read FParseFrom;
-    property Is64                : Boolean               read GetIs64;
+    property ImageDosHeader      : TImageDosHeader           read GetImageDosHeader;
+    property ImageNtSignature    : DWORD                     read GetImageNtSignature;
+    property ImageFileHeader     : TImageFileHeader          read GetImageFileHeader;
+    property ImageOptionalHeader : TImageOptionalHeader      read GetImageOptionalHeader;
+    property Sections            : TObjectList<TSection>     read GetSections;
+    property ExportList          : TObjectList<TExportEntry> read GetExports;
+    property BaseOffset          : UInt64                    read FBaseOffset;
+    property ParseFrom           : TParseFrom                read FParseFrom;
+    property Is64                : Boolean                   read GetIs64;
   end;
 
   var
@@ -257,11 +318,13 @@ begin
   inherited Create();
   ///
 
-  FSuccess     := False;
-  FParseFrom   := pfFile;
-  FHandle      := INVALID_HANDLE_VALUE;
-  FCloseHandle := True;
-  FBaseOffset  := 0;
+  FSuccess               := False;
+  FParseFrom             := pfFile;
+  FHandle                := INVALID_HANDLE_VALUE;
+  FCloseHandle           := True;
+  FBaseOffset            := 0;
+  FScanOptions           := [];
+  FFileName              := '';
 
   FDosStubOffset             := 0;
   FImageNtSignatureOffset    := 0;
@@ -277,7 +340,7 @@ begin
   FImageNtSignature := 0;
 
   FSections := TObjectList<TSection>.Create(True);
-  FExports  := TObjectList<TExport>.Create(True);;
+  FExports  := TObjectList<TExportEntry>.Create(True);
 end;
 
 { TPortableExecutable.Read }
@@ -315,7 +378,7 @@ var AOffset              : UInt64;
     I                    : UInt64;
     ASectionHeader       : TImageSectionHeader;
     ASectionHeaderOffset : UInt64;
-    AExport              : TExport;
+    AExport              : TPEExportEntry;
     AOrdinal             : Word;
     ANameOffset          : UInt64;
     ALength              : UInt64;
@@ -494,12 +557,12 @@ begin
 
   Read(@FImageExportDirectory, SizeOf(TImageExportDirectory));
 
-  if (FImageExportDirectory.NumberOfFunctions > 0) and
-      (FImageExportDirectory.NumberOfNames > 0) then begin
+  if ((FImageExportDirectory.NumberOfFunctions > 0) and
+      (FImageExportDirectory.NumberOfNames > 0)) and ((FScanOptions = []) or (soExportedFunctions in FScanOptions)) then begin
     FExports.Clear();
 
     for I := 0 to FImageExportDirectory.NumberOfNames {??? NumberOfFunctions ???} -1 do begin
-      AExport := TExport.Create();
+      AExport := TPEExportEntry.Create();
 
       // Read Function Ordinal
       AOffset := SectionRVAToFileOffset(FImageExportDirectory.AddressOfNameOrdinals + (I * SizeOf(Word)));
@@ -549,18 +612,140 @@ begin
     end;
   end;
 
+  (*
+    Read COM Objects Methods + Properties (Only possible through physical path reading)
+    TODO: Parse from memory.
+  *)
+  if (FParseFrom = pfFile) and ((FScanOptions = []) or (
+    (soCOMMethods in FScanOptions) or
+    (soCOMProperties in FScanOptions) or
+    (soCOMUnknown in FScanOptions)
+  )) then
+    self.ScanCOMTypesLibraries();
+
   ///
   FSuccess := True;
 end;
 
+{ TPortableExecutable.ScanCOMTypesLibraries }
+procedure TPortableExecutable.ScanCOMTypesLibraries();
+var ATypeLib    : ITypeLib;
+    AResult     : Integer;
+    I, N        : Cardinal;
+    ATypeInfo   : ITypeInfo;
+    ptrTypeAttr : PTypeAttr;
+    ptrFuncDesc : PFuncDesc;
+    ATypeName   : String;
+    pTypeName   : PWideChar;
+    AItemName   : String;
+    pFuncName   : PWideChar;
+    AExport     : TCOMExportEntry;
+begin
+  try
+    CoInitialize(nil);
+    try
+      // Investigate how we could load COM Type Libraries info directly from memory.
+      // CreatePointerMoniker ?
+      AResult := LoadTypeLib(PWideChar(FFileName), ATypeLib);
+      if AResult <> S_OK then
+        Exit();
+
+      for I := 0 to ATypeLib.GetTypeInfoCount - 1 do begin
+        AResult := ATypeLib.GetTypeInfo(I, ATypeInfo);
+        if AResult <> S_OK then
+          continue;
+
+        AResult := ATypeInfo.GetTypeAttr(ptrTypeAttr);
+        if AResult <> S_OK then
+          continue;
+        try
+          (*case ptrTypeAttr^.typekind of
+            TKIND_INTERFACE,
+            TKIND_DISPATCH : ;
+
+            else
+              continue;
+          end;*)
+          ///
+
+          ATypeInfo.GetDocumentation(-1, @pTypeName, nil, nil, nil);
+          try
+            ATypeName := WideString(pTypeName);
+          finally
+            SysFreeString(pTypeName);
+          end;
+
+
+          if ptrTypeAttr^.cFuncs > 0 then begin
+            for N := 0 to ptrTypeAttr^.cFuncs -1 do begin
+              AResult := ATypeInfo.GetFuncDesc(N, ptrFuncDesc);
+              if AResult <> S_OK then
+                continue;
+              try
+                AResult := ATypeinfo.GetDocumentation(ptrFuncDesc^.memid, @pFuncName, nil, nil, nil);
+                if AResult <> S_OK then
+                  continue;
+                try
+                  //
+                  AItemName := WideString(pFuncName);
+                finally
+                  SysFreeString(PWideChar(pFuncName));
+                end;
+
+                if ptrFuncDesc.wFuncFlags = FUNCFLAG_FRESTRICTED then
+                  continue;
+
+                AExport := TCOMExportEntry.Create(ATypeName);
+                AExport.Name := AItemName;
+                AExport.Ordinal := ptrFuncDesc^.memid;
+
+                case ptrFuncDesc.invkind of
+                  INVOKE_FUNC:
+                    AExport.COMKind := comkMethod;
+
+                  INVOKE_PROPERTYGET,
+                  INVOKE_PROPERTYPUT,
+                  INVOKE_PROPERTYPUTREF:
+                    AExport.COMKind := comkProperty;
+
+                  else
+                    AExport.COMKind := comUnknown;
+                end;
+
+                if (FScanOptions <> []) and
+                   (((not (soCOMUnknown in FScanOptions)) and (AExport.COMKind = comUnknown)) or
+                   ((not (soCOMMethods in FScanOptions)) and (AExport.COMKind = comkMethod)) or
+                   ((not (soCOMProperties in FScanOptions)) and (AExport.COMKind = comkProperty)))
+                  then continue;
+
+                ///
+                FExports.Add(AExport);
+              finally
+                ATypeInfo.ReleaseFuncDesc(ptrFuncDesc);
+              end;
+            end;
+          end;
+        finally
+          ATypeInfo.ReleaseTypeAttr(ptrTypeAttr);
+        end;
+      end;
+    finally
+      CoUninitialize();
+    end;
+  except
+  end;
+end;
+
 { TPortableExecutable.CreateFromFile }
-constructor TPortableExecutable.CreateFromFile(const AFileName : String);
+constructor TPortableExecutable.CreateFromFile(const AFileName : String; const AScanOptions : TScanOptions = []);
 var AOldWow64RedirectionValue : LongBool;
 begin
   Create();
   ///
 
   FParseFrom := pfFile;
+  FFileName  := AFileName;
+  FScanOptions := AScanOptions;
 
 // TODO In Option
 //  if Assigned(Wow64DisableWow64FsRedirection) then
@@ -587,7 +772,7 @@ begin
 end;
 
 { TPortableExecutable.CreateFromMemory }
-constructor TPortableExecutable.CreateFromMemory(const AProcessId : Cardinal; const ABaseAddress : Pointer);
+constructor TPortableExecutable.CreateFromMemory(const AProcessId : Cardinal; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []);
 var AProcessHandle : THandle;
 begin
   AProcessHandle := OpenProcess(
@@ -599,10 +784,10 @@ begin
     raise EWindowsException.Create('OpenProcess');
   ///
 
-  self.CreateFromMemory(AProcessHandle, ABaseAddress);
+  self.CreateFromMemory(AProcessHandle, ABaseAddress, AScanOptions);
 end;
 
-constructor TPortableExecutable.CreateFromMemory(const AProcessHandle : THandle; const ABaseAddress : Pointer);
+constructor TPortableExecutable.CreateFromMemory(const AProcessHandle : THandle; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []);
 begin
   Create();
   ///
@@ -610,6 +795,7 @@ begin
   FParseFrom   := pfMemory;
 
   FHandle      := AProcessHandle;
+  FScanOptions := AScanOptions;
   FCloseHandle := False;
 
   FBaseOffset  := UInt64(ABaseAddress);
@@ -892,7 +1078,7 @@ begin
 end;
 
 { TPortableExecutable.GetExports }
-function TPortableExecutable.GetExports() : TObjectList<TExport>;
+function TPortableExecutable.GetExports() : TObjectList<TExportEntry>;
 begin
   self.RaiseUnparsedHeader();
   ///
@@ -951,54 +1137,142 @@ begin
   end;
 end;
 
-(* TExport Class *)
+(* TExportEntry Class *)
 
-{ TExport.Create }
-constructor TExport.Create();
+{ TExportEntry.Create }
+constructor TExportEntry.Create();
 begin
   inherited Create();
   ///
 
-  FOrdinal         := 0;
-  FName            := '';
+  FName    := '';
+  FOrdinal := 0;
+end;
+
+{ TExportEntry.Assign }
+procedure TExportEntry.Assign(ASource : TPersistent);
+begin
+  if ASource is TExportEntry then begin
+    FOrdinal := TExportEntry(ASource).Ordinal;
+    FName    := TExportEntry(ASource).Name;
+  end else
+    inherited;
+end;
+
+{ TExportEntry.ToJson }
+function TExportEntry.ToJson() : ISuperObject;
+begin
+  result := SO();
+  ///
+
+  result.I['ordinal'] := FOrdinal;
+  result.S['name']    := FName;
+end;
+
+{ TExportEntry.GetDisplayName }
+function TExportEntry.GetDisplayName() : string;
+begin
+  result := self.Name;
+end;
+
+(* TCOMExportEntry Class *)
+
+{ TCOMExportEntry.Create }
+constructor TCOMExportEntry.Create(const ATypeName : String = '');
+begin
+  inherited Create();
+  ///
+
+  FCOMKind := comUnknown;
+  FTypeName := ATypeName;
+end;
+
+constructor TCOMExportEntry.Create(const AExport : TCOMExportEntry);
+begin
+  Create();
+  ///
+
+  self.Assign(AExport);
+end;
+
+{ TCOMExportEntry.Assign }
+procedure TCOMExportEntry.Assign(ASource : TPersistent);
+begin
+  inherited Assign(ASource);
+  ///
+
+  if ASource is TCOMExportEntry then begin
+    FTypeName := TCOMExportEntry(ASource).TypeName;
+    FCOMKind  := TCOMExportEntry(ASource).COMKind;
+  end;
+end;
+
+{ TCOMExportEntry.ToJson}
+function TCOMExportEntry.ToJson() : ISuperObject;
+begin
+  result := inherited ToJson();
+  ///
+
+  result.S['type_name'] := FTypeName;
+  result.I['com_kind']  := Integer(FCOMKind);
+end;
+
+{ TCOMExportEntry.GetDisplayName }
+function TCOMExportEntry.GetDisplayName() : String;
+begin
+  if self.TypeName.IsEmpty then
+    result := inherited
+  else
+    result := Format('%s::%s', [
+      self.TypeName,
+      self.Name
+    ]);
+end;
+
+(* TPEExportEntry Class *)
+
+{ TPEExportEntry.Create }
+constructor TPEExportEntry.Create();
+begin
+  inherited Create();
+  ///
+
   FAddress         := 0;
   FRelativeAddress := 0;
   FForwarded       := False;
   FForwardName     := '';
 end;
 
-constructor TExport.Create(const AExport : TExport);
+constructor TPEExportEntry.Create(const AExport : TPEExportEntry);
 begin
-  inherited Create();
+  Create();
   ///
 
   self.Assign(AExport);
 end;
 
-{ TExport.Assign }
-procedure TExport.Assign(ASource : TPersistent);
+{ TPEExportEntry.Assign }
+procedure TPEExportEntry.Assign(ASource : TPersistent);
 begin
-  if ASource is TExport then begin
-    FOrdinal         := TExport(ASource).Ordinal;
-    FRelativeAddress := TExport(ASource).RelativeAddress;
-    FAddress         := TExport(ASource).Address;
-    FName            := TExport(ASource).Name;
-    FForwarded       := TExport(ASource).Forwarded;
-    FForwardName     := TExport(ASource).ForwardName;
-  end else
-    inherited Assign(ASource);
-end;
-
-{ TExport.ToJson }
-function TExport.ToJson() : ISuperObject;
-begin
-  result := SO();
+  inherited Assign(ASource);
   ///
 
-  result.I['ordinal']       := FOrdinal;
+  if ASource is TPEExportEntry then begin
+    FRelativeAddress := TPEExportEntry(ASource).RelativeAddress;
+    FAddress         := TPEExportEntry(ASource).Address;
+    FForwarded       := TPEExportEntry(ASource).Forwarded;
+    FForwardName     := TPEExportEntry(ASource).ForwardName;
+  end;
+end;
+
+{ TPEExportEntry.ToJson }
+function TPEExportEntry.ToJson() : ISuperObject;
+begin
+  result := inherited ToJson();
+  ///
+
   result.S['relative_addr'] := Format('0x%p', [Pointer(FRelativeAddress)]);
   result.S['address']       := Format('0x%p', [Pointer(FAddress)]);
-  result.S['name']          := FName;
   result.B['forwarded']     := FForwarded;
 
   if FForwarded then

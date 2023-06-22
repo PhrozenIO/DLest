@@ -159,8 +159,23 @@ En utilisant ce code, l'utilisateur accepte de garantir et de dégager Jean-Pier
 
 Cette clause de non-responsabilité est sujette à modification sans préavis et l'utilisateur est responsable de vérifier les mises à jour. Si l'utilisateur n'accepte pas les termes de cette clause de non-responsabilité, il ne doit pas utiliser ce code.
 
+# Changelog
+
+## Dec 2022
+
+- First Release
+
+## Jun 2023
+
+- Enumerate COM Object (Method & Properties) - File only (not in-memory yet)
+- Possibility to select which items user want to enumerate (exported function, com properties or methods)
+- Few application icons updated for more confort.
+- Virtual TreeView component updated to version 7.6.4.
+- Compiled with Delphi 11.3.
+
 # Special Thanks
 
 - Thomas Roccia ([@fr0gger_](https://twitter.com/fr0gger_))
+- mudpak ([Mudsor MASOOD](https://www.linkedin.com/in/mudsormasood)) for his valuable support and testing.
 - [Jam Software](https://www.jam-software.com/virtual-treeview) : TVirtualStringTree Component
 - [onryldz](https://github.com/onryldz/x-superobject) : XSuperObject Lib

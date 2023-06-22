@@ -45,7 +45,9 @@ uses
   uApplication in 'Units\uApplication.pas',
   uTypes in 'Units\uTypes.pas',
   uVirtualStringTreeUtils in 'Units\uVirtualStringTreeUtils.pas',
-  uFormExtendedLibrariesInformation in 'Units\Forms\uFormExtendedLibrariesInformation.pas' {FormExtendedLibrariesInformation};
+  uFormExtendedLibrariesInformation in 'Units\Forms\uFormExtendedLibrariesInformation.pas' {FormExtendedLibrariesInformation},
+  Vcl.Themes,
+  Vcl.Styles;
 
 {$R *.res}
 
@@ -63,6 +65,5 @@ begin
   Application.CreateForm(TFormScanFolder, FormScanFolder);
   Application.CreateForm(TFormLogs, FormLogs);
   Application.CreateForm(TFormAbout, FormAbout);
-
   Application.Run;
 end.

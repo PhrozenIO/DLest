@@ -34,12 +34,14 @@ type
     Label4: TLabel;
     Label5: TLabel;
     ButtonClose: TButton;
+    Label1: TLabel;
     procedure FormKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure ButtonCloseClick(Sender: TObject);
     procedure Label3Click(Sender: TObject);
     procedure Label4Click(Sender: TObject);
     procedure Label5Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
+    procedure Label1Click(Sender: TObject);
   private
     { Private declarations }
   public
@@ -74,6 +76,11 @@ begin
   case Key of
     13, 27: ButtonClose.Click();
   end;
+end;
+
+procedure TFormAbout.Label1Click(Sender: TObject);
+begin
+  Open('https://unprotect.it');
 end;
 
 procedure TFormAbout.Label3Click(Sender: TObject);

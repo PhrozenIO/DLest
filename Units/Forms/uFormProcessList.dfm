@@ -2,8 +2,8 @@ object FormProcessList: TFormProcessList
   Left = 0
   Top = 0
   Caption = 'Process List'
-  ClientHeight = 426
-  ClientWidth = 711
+  ClientHeight = 393
+  ClientWidth = 697
   Color = clWhite
   DoubleBuffered = True
   Font.Charset = DEFAULT_CHARSET
@@ -19,8 +19,8 @@ object FormProcessList: TFormProcessList
     AlignWithMargins = True
     Left = 4
     Top = 4
-    Width = 703
-    Height = 369
+    Width = 689
+    Height = 336
     Margins.Left = 4
     Margins.Top = 4
     Margins.Right = 4
@@ -42,16 +42,16 @@ object FormProcessList: TFormProcessList
     MinPosition = 0.020000000000000000
     Align = alClient
     TabOrder = 0
-    ExplicitWidth = 689
-    ExplicitHeight = 336
+    ExplicitWidth = 717
+    ExplicitHeight = 369
     DesignSize = (
-      703
-      369)
+      689
+      336)
     object PanelProcess: TPanel
       Left = 0
       Top = 0
-      Width = 703
-      Height = 184
+      Width = 689
+      Height = 168
       Anchors = []
       BevelOuter = bvNone
       Color = 16448250
@@ -156,9 +156,9 @@ object FormProcessList: TFormProcessList
     end
     object PanelModules: TPanel
       Left = 0
-      Top = 187
-      Width = 703
-      Height = 182
+      Top = 171
+      Width = 689
+      Height = 165
       Anchors = []
       BevelOuter = bvNone
       Color = 16448250
@@ -245,8 +245,8 @@ object FormProcessList: TFormProcessList
   object PanelMessage: TPanel
     AlignWithMargins = True
     Left = 4
-    Top = 381
-    Width = 703
+    Top = 348
+    Width = 689
     Height = 41
     Margins.Left = 4
     Margins.Top = 4
@@ -257,8 +257,6 @@ object FormProcessList: TFormProcessList
     Color = clWhite
     ParentBackground = False
     TabOrder = 1
-    ExplicitTop = 348
-    ExplicitWidth = 689
     object VirtualImage1: TVirtualImage
       Left = 0
       Top = 0
@@ -275,8 +273,8 @@ object FormProcessList: TFormProcessList
       AlignWithMargins = True
       Left = 25
       Top = 0
-      Width = 678
-      Height = 41
+      Width = 671
+      Height = 30
       Margins.Left = 8
       Margins.Top = 0
       Margins.Right = 0
@@ -290,8 +288,6 @@ object FormProcessList: TFormProcessList
         'a process from being listed.'
       ParentBiDiMode = False
       WordWrap = True
-      ExplicitWidth = 671
-      ExplicitHeight = 30
     end
   end
   object PopupProcess: TPopupMenu

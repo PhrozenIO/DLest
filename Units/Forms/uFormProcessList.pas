@@ -205,7 +205,8 @@ begin
 
     APortableExecutable := TPortableExecutable.CreateFromMemory(
       pData^.ProcessId,
-      pData^.ModuleBase
+      pData^.ModuleBase,
+      []
     );
     try
       ADestFile := Format('%s%s_%s', [

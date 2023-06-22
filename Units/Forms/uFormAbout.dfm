@@ -3,9 +3,9 @@ object FormAbout: TFormAbout
   Top = 0
   BorderIcons = [biSystemMenu]
   BorderStyle = bsSingle
-  Caption = 'About PsyloDbg'
-  ClientHeight = 295
-  ClientWidth = 383
+  Caption = 'About DLest'
+  ClientHeight = 308
+  ClientWidth = 388
   Color = clWhite
   DoubleBuffered = True
   Font.Charset = DEFAULT_CHARSET
@@ -22,7 +22,7 @@ object FormAbout: TFormAbout
     AlignWithMargins = True
     Left = 16
     Top = 16
-    Width = 351
+    Width = 356
     Height = 100
     Margins.Left = 16
     Margins.Top = 16
@@ -43,7 +43,7 @@ object FormAbout: TFormAbout
     AlignWithMargins = True
     Left = 3
     Top = 135
-    Width = 377
+    Width = 382
     Height = 25
     Align = alTop
     Alignment = taCenter
@@ -60,7 +60,7 @@ object FormAbout: TFormAbout
     AlignWithMargins = True
     Left = 3
     Top = 166
-    Width = 377
+    Width = 382
     Height = 15
     Margins.Bottom = 0
     Align = alTop
@@ -72,7 +72,7 @@ object FormAbout: TFormAbout
     AlignWithMargins = True
     Left = 3
     Top = 181
-    Width = 377
+    Width = 382
     Height = 15
     Cursor = crHandPoint
     Margins.Top = 0
@@ -92,7 +92,7 @@ object FormAbout: TFormAbout
     AlignWithMargins = True
     Left = 3
     Top = 202
-    Width = 377
+    Width = 382
     Height = 15
     Cursor = crHandPoint
     Margins.Bottom = 0
@@ -111,8 +111,8 @@ object FormAbout: TFormAbout
   object Label5: TLabel
     AlignWithMargins = True
     Left = 3
-    Top = 217
-    Width = 377
+    Top = 235
+    Width = 382
     Height = 15
     Cursor = crHandPoint
     Margins.Top = 0
@@ -126,13 +126,35 @@ object FormAbout: TFormAbout
     Font.Style = [fsUnderline]
     ParentFont = False
     OnClick = Label5Click
+    ExplicitTop = 217
     ExplicitWidth = 161
+  end
+  object Label1: TLabel
+    AlignWithMargins = True
+    Left = 3
+    Top = 220
+    Width = 382
+    Height = 15
+    Cursor = crHandPoint
+    Margins.Bottom = 0
+    Align = alTop
+    Alignment = taCenter
+    Caption = 'www.unprotect.it'
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -12
+    Font.Name = 'Segoe UI'
+    Font.Style = [fsUnderline]
+    ParentFont = False
+    OnClick = Label1Click
+    ExplicitLeft = 8
+    ExplicitWidth = 377
   end
   object ButtonClose: TButton
     AlignWithMargins = True
     Left = 128
-    Top = 262
-    Width = 127
+    Top = 275
+    Width = 132
     Height = 25
     Margins.Left = 128
     Margins.Top = 8

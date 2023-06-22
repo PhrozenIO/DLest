@@ -59,7 +59,7 @@ var AFiles         : TStringList;
     AFile          : String;
     AValidated     : Boolean;
     AParser        : TPortableExecutable;
-    AExport        : TExport;
+    AExport        : TExportEntry;
 begin
   Queue(procedure begin
     FForm.Show();
@@ -94,10 +94,10 @@ begin
               AValidated := False;
               ///
 
-              AParser := TPortableExecutable.CreateFromFile(AFile);
+              AParser := TPortableExecutable.CreateFromFile(AFile, []);
               try
                 for AExport in AParser.ExportList do begin
-                  if TRegEx.IsMatch(AExport.Name, FFilterRegex) then begin
+                  if TRegEx.IsMatch(AExport.DisplayName, FFilterRegex) then begin
                     AValidated := True;
 
                     break;

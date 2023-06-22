@@ -30,7 +30,7 @@ uses
 type
   TTreeData = record
     ImagePath   : String;
-    ExportEntry : TExport;
+    ExportEntry : TExportEntry;
     StateIndex  : Integer;
     ExportCount : UInt64; // I see things in big
   end;
@@ -118,6 +118,8 @@ type
     function HaveExportInSelection() : Boolean;
     function HiddenNodeCount() : Cardinal;
     function VisibleNodeCount() : Cardinal;
+    function GetExportTypeIndex(const AExport : TExportEntry) : Byte;
+    function GetExportTypeName(const AExport : TExportEntry) : String;
   private
     {@M}
     procedure DoSearch();
@@ -146,6 +148,41 @@ uses uFormMain, uConstants, System.Math, uGraphicUtils, System.RegularExpression
      VCL.FileCtrl, uVirtualStringTreeUtils, VCL.Clipbrd;
 
 {$R *.dfm}
+
+function TFrameList.GetExportTypeName(const AExport : TExportEntry) : String;
+begin
+  case GetExportTypeIndex(AExport) of
+    1 : result := 'Exported Function';
+    2 : result := 'COM Method';
+    3 : result := 'COM Property';
+    4 : result := 'COM Unknown';
+
+    else
+      result := 'Unknown';
+  end;
+end;
+
+function TFrameList.GetExportTypeIndex(const AExport : TExportEntry) : Byte;
+begin
+  result := 0;
+  ///
+
+  if not Assigned(AExport) then
+    Exit();
+  ///
+
+  if AExport is TPEExportEntry then
+    result := 1
+  else if AExport is TCOMExportEntry then begin
+    case TCOMExportEntry(AExport).COMKind of
+      comkMethod   : result := 2;
+      comkProperty : result := 3;
+
+      else
+        result := 4;
+    end;
+  end;
+end;
 
 procedure TFrameList.DoSearch();
 var ADoReset : Boolean;
@@ -197,19 +234,37 @@ begin
 
 
       case TMenuItem(ASender).Tag of
-        0 : AStrings.Add(pData^.ExportEntry.Name);
-        1 : AStrings.Add(ToPointerString(pData^.ExportEntry.Address));
-        2 : AStrings.Add(ToPointerString(pData^.ExportEntry.RelativeAddress));
+        0 : AStrings.Add(pData^.ExportEntry.DisplayName);
+
+        1 : begin
+          if pData^.ExportEntry is TPEExportEntry then
+            AStrings.Add(ToPointerString(TPEExportEntry(pData^.ExportEntry).Address));
+        end;
+
+        2 : begin
+          if pData^.ExportEntry is TPEExportEntry then
+            AStrings.Add(ToPointerString(TPEExportEntry(pData^.ExportEntry).RelativeAddress));
+        end;
+
         3 : AStrings.Add(IntToStr(pData^.ExportEntry.Ordinal));
+
         4 : AStrings.Add(pData^.ImagePath);
         else
-          AStrings.Add(Format('name:%s, address:0x%p, rel_address:0x%p, ordinal:%d, path:"%s"', [
-            pData^.ExportEntry.Name,
-            Pointer(pData^.ExportEntry.Address),
-            Pointer(pData^.ExportEntry.RelativeAddress),
-            pData^.ExportEntry.Ordinal,
-            pData^.ImagePath
-          ]));
+          // TODO
+          if pData^.ExportEntry is TPEExportEntry then
+            AStrings.Add(Format('name:%s, address:0x%p, rel_address:0x%p, ordinal:%d, path:"%s"', [
+              pData^.ExportEntry.DisplayName,
+              Pointer(TPEExportEntry(pData^.ExportEntry).Address),
+              Pointer(TPEExportEntry(pData^.ExportEntry).RelativeAddress),
+              pData^.ExportEntry.Ordinal,
+              pData^.ImagePath
+            ]))
+          else if pData^.ExportEntry is TCOMExportEntry then
+            AStrings.Add(Format('name:%s, ordinal:%d, path:"%s"', [
+              pData^.ExportEntry.DisplayName,
+              pData^.ExportEntry.Ordinal,
+              pData^.ImagePath
+            ]))
       end;
     end;
   finally
@@ -346,7 +401,7 @@ begin
       Include(pNode.States, vsVisible);
 
       if not AReset then begin
-        if TRegEx.IsMatch(pData^.ExportEntry.Name, EditRegex.Text) then
+        if TRegEx.IsMatch(pData^.ExportEntry.DisplayName, EditRegex.Text) then
           Include(pNode.States, vsVisible)
         else begin
           Exclude(pNode.States, vsVisible);
@@ -572,7 +627,7 @@ begin
     Exit();
 
   ///
-  GoogleSearch(Format('"%s"', [pData^.ExportEntry.Name]));
+  GoogleSearch(Format('"%s"', [pData^.ExportEntry.DisplayName]));
 end;
 
 procedure TFrameList.SearchBoth1Click(Sender: TObject);
@@ -590,7 +645,7 @@ begin
   ///
   GoogleSearch(Format('"%s"+"%s"', [
     ExtractFileName(pData^.ImagePath),
-    ExtractFileName(pData^.ExportEntry.Name)
+    ExtractFileName(pData^.ExportEntry.DisplayName)
   ]));
 end;
 
@@ -650,8 +705,19 @@ begin
   AColorB := clNone;
 
   if Assigned(pData^.ExportEntry) then begin
-    if pData^.ExportEntry.Forwarded then
-      AColorA := _COLOR_LIST_BG_ALT;
+    case self.GetExportTypeIndex(pData^.ExportEntry) of
+      1 : begin
+        if pData^.ExportEntry is TPEExportEntry then
+          if TPEExportEntry(pData^.ExportEntry).Forwarded then
+            AColorA := _COLOR_LIST_BG_ALT;
+      end;
+      else
+        AColorA := _COLOR_LIST_BG_GRAY;
+    end;
+    if pData^.ExportEntry is TPEExportEntry then
+      // TODO
+      if TPEExportEntry(pData^.ExportEntry).Forwarded then
+
   end else if FGrouped and (VST.GetNodeLevel(Node) = 0) then begin
     AProgress := CellRect;
 
@@ -690,20 +756,49 @@ end;
 
 procedure TFrameList.VSTCompareNodes(Sender: TBaseVirtualTree; Node1,
   Node2: PVirtualNode; Column: TColumnIndex; var Result: Integer);
-var pData1 : PTreeData;
-    pData2 : PTreeData;
+var pData1            : PTreeData;
+    pData2            : PTreeData;
+    AAddress1         : UInt64;
+    ARelativeAddress1 : UInt64;
+    AAddress2         : UInt64;
+    ARelativeAddress2 : UInt64;
 begin
   pData1 := Node1.GetData;
   pData2 := Node2.GetData;
 
   if Assigned(pData1^.ExportEntry) and
      Assigned(pData2^.ExportEntry) then begin
+
+
+    AAddress1         := 0;
+    ARelativeAddress1 := 0;
+    AAddress2         := 0;
+    ARelativeAddress2 := 0;
+
+    if pData1^.ExportEntry is TPEExportEntry then begin
+      AAddress1         := TPEExportEntry(pData1^.ExportEntry).Address;
+      ARelativeAddress1 := TPEExportEntry(pData1^.ExportEntry).RelativeAddress;
+    end;
+
+    if pData2^.ExportEntry is TPEExportEntry then begin
+      AAddress2         := TPEExportEntry(pData2^.ExportEntry).Address;
+      ARelativeAddress2 := TPEExportEntry(pData2^.ExportEntry).RelativeAddress;
+    end;
+
     case Column of
-      0 : result := CompareText(pData1^.ExportEntry.Name, pData2^.ExportEntry.Name);
-      1 : result := CompareValue(pData1^.ExportEntry.Address, pData2^.ExportEntry.Address);
-      2 : result := CompareValue(pData1^.ExportEntry.RelativeAddress, pData2^.ExportEntry.RelativeAddress);
+      0 : result := CompareText(pData1^.ExportEntry.DisplayName, pData2^.ExportEntry.DisplayName);
+
+      1 : begin
+        result := CompareValue(AAddress1, AAddress2);
+      end;
+
+      2 : begin
+        result := CompareValue(ARelativeAddress1, ARelativeAddress2);
+      end;
+
       3 : result := CompareValue(pData1^.ExportEntry.Ordinal, pData2^.ExportEntry.Ordinal);
       4 : result := CompareText(pData1^.ImagePath, pData2^.ImagePath);
+      5 : result := CompareValue(GetExportTypeIndex(pData1^.ExportEntry), GetExportTypeIndex(pData2^.ExportEntry));
     end;
   end else if
     (not Assigned(pData1^.ExportEntry)) and
@@ -735,15 +830,28 @@ var pData : PTreeData;
 begin
   pData := Node.GetData;
 
+  ImageIndex := -1;
+
   if Assigned(pData^.ExportEntry) then begin
     case Kind of
       ikNormal, ikSelected: begin
         case Column of
           0 : begin
-            if pData^.ExportEntry.Forwarded then
-              ImageIndex := _ICON_EXPORT_FORWARDED
-            else
-              ImageIndex := _ICON_EXPORT;
+            case self.GetExportTypeIndex(pData^.ExportEntry) of
+              1 : begin
+                if pData^.ExportEntry is TPEExportEntry then
+                  if TPEExportEntry(pData^.ExportEntry).Forwarded then
+                    ImageIndex := _ICON_EXPORT_FORWARDED
+                  else
+                    ImageIndex := _ICON_EXPORT;
+              end;
+
+              2 : ImageIndex := _ICON_COM_METHOD;
+              3 : ImageIndex := _ICON_COM_PROPERTY;
+
+              else
+                ImageIndex := _ICON_UNKNOWN_EXPORT;
+            end;
           end;
         end;
       end;
@@ -775,18 +883,29 @@ begin
 
   if Assigned(pData.ExportEntry) then begin
     case Column of
-      0 : CellText := pData^.ExportEntry.Name;
+      0 : CellText := pData^.ExportEntry.DisplayName;
 
       1 : begin
-        if pData^.ExportEntry.Forwarded then
-          CellText := pData^.ExportEntry.ForwardName
-        else
-          CellText := Format('0x%p', [Pointer(pData^.ExportEntry.Address)]);
+        if pData^.ExportEntry is TPEExportEntry then
+          if TPEExportEntry(pData^.ExportEntry).Forwarded then
+            CellText := TPEExportEntry(pData^.ExportEntry).ForwardName
+          else
+            CellText := Format('0x%p', [
+              Pointer(TPEExportEntry(pData^.ExportEntry).Address)
+            ]);
       end;
 
-      2 : CellText := Format('0x%p', [Pointer(pData^.ExportEntry.RelativeAddress)]);
+      2 : begin
+        if pData^.ExportEntry is TPEExportEntry then
+          CellText := Format('0x%p', [
+            Pointer(TPEExportEntry(pData^.ExportEntry).RelativeAddress)
+
+          ]);
+      end;
+
       3 : CellText := IntToStr(pData^.ExportEntry.Ordinal);
       4 : CellText := pData^.ImagePath;
+      5 : CellText := GetExportTypeName(pData^.ExportEntry);
     end;
   end else begin
     case Column of
