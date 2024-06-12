@@ -2,23 +2,25 @@ object FormExtendedLibrariesInformation: TFormExtendedLibrariesInformation
   Left = 0
   Top = 0
   Caption = 'Extended Libraries Informations'
-  ClientHeight = 228
-  ClientWidth = 489
-  Color = clBtnFace
+  ClientHeight = 337
+  ClientWidth = 746
+  Color = clWhite
   DoubleBuffered = True
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
   Font.Height = -12
   Font.Name = 'Segoe UI'
   Font.Style = []
+  KeyPreview = True
   Position = poOwnerFormCenter
+  OnKeyDown = FormKeyDown
   TextHeight = 15
   object VST: TVirtualStringTree
     AlignWithMargins = True
     Left = 4
     Top = 4
-    Width = 481
-    Height = 220
+    Width = 738
+    Height = 329
     Margins.Left = 4
     Margins.Top = 4
     Margins.Right = 4
@@ -41,14 +43,15 @@ object FormExtendedLibrariesInformation: TFormExtendedLibrariesInformation
     Colors.UnfocusedColor = clGray
     Colors.UnfocusedSelectionColor = clWhite
     Colors.UnfocusedSelectionBorderColor = clWhite
+    DefaultNodeHeight = 19
     Header.AutoSizeIndex = -1
-    Header.MainColumn = 1
     Header.Options = [hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible, hoHeaderClickAutoSort]
     Header.PopupMenu = PopupMenu
     PopupMenu = PopupMenu
     StateImages = FormMain.ImageSystem
     TabOrder = 0
-    TreeOptions.PaintOptions = [toShowButtons, toShowDropmark, toShowTreeLines, toShowVertGridLines, toThemeAware, toUseBlendedImages, toFullVertGridLines, toUseExplorerTheme]
+    TreeOptions.AutoOptions = [toAutoDropExpand, toAutoScrollOnExpand, toAutoSort, toAutoSpanColumns, toAutoTristateTracking, toAutoHideButtons, toAutoDeleteMovedNodes, toAutoChangeScale]
+    TreeOptions.PaintOptions = [toShowButtons, toShowDropmark, toShowRoot, toShowTreeLines, toShowVertGridLines, toThemeAware, toUseBlendedImages, toFullVertGridLines, toUseExplorerTheme]
     TreeOptions.SelectionOptions = [toExtendedFocus, toFullRowSelect, toMiddleClickSelect, toMultiSelect, toRightClickSelect, toRestoreSelection]
     OnBeforeCellPaint = VSTBeforeCellPaint
     OnChange = VSTChange
@@ -59,13 +62,12 @@ object FormExtendedLibrariesInformation: TFormExtendedLibrariesInformation
     OnGetNodeDataSize = VSTGetNodeDataSize
     Touch.InteractiveGestures = [igPan, igPressAndTap]
     Touch.InteractiveGestureOptions = [igoPanSingleFingerHorizontal, igoPanSingleFingerVertical, igoPanInertia, igoPanGutter, igoParentPassthrough]
-    ExplicitLeft = -1
-    ExplicitTop = -1
+    ExplicitHeight = 277
     Columns = <
       item
         Position = 0
         Text = 'File Name'
-        Width = 100
+        Width = 250
       end
       item
         Position = 1
@@ -89,21 +91,6 @@ object FormExtendedLibrariesInformation: TFormExtendedLibrariesInformation
       end
       item
         Position = 5
-        Text = 'MD5'
-        Width = 250
-      end
-      item
-        Position = 6
-        Text = 'SHA1'
-        Width = 300
-      end
-      item
-        Position = 7
-        Text = 'SHA2'
-        Width = 450
-      end
-      item
-        Position = 8
         Text = 'Location'
         Width = 250
       end>
@@ -140,6 +127,13 @@ object FormExtendedLibrariesInformation: TFormExtendedLibrariesInformation
       ShortCut = 16453
       OnClick = ShowSelectedFileOnExplorer1Click
     end
+    object N5: TMenuItem
+      Caption = '-'
+    end
+    object CalculateSelectedImageFileHashes1: TMenuItem
+      Caption = 'Calculate Selected Image File Hashes'
+      OnClick = CalculateSelectedImageFileHashes1Click
+    end
     object N3: TMenuItem
       Caption = '-'
     end
@@ -147,6 +141,15 @@ object FormExtendedLibrariesInformation: TFormExtendedLibrariesInformation
       Caption = 'Open Selected Files In A New Tab'
       ShortCut = 16468
       OnClick = OpenSelectedFilesonanewTab1Click
+    end
+    object N4: TMenuItem
+      Caption = '-'
+    end
+    object ShowListasTree1: TMenuItem
+      AutoCheck = True
+      Caption = 'Show List as Tree'
+      Checked = True
+      OnClick = ShowListasTree1Click
     end
   end
 end

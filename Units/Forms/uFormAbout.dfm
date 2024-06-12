@@ -4,7 +4,7 @@ object FormAbout: TFormAbout
   BorderIcons = [biSystemMenu]
   BorderStyle = bsSingle
   Caption = 'About DLest'
-  ClientHeight = 308
+  ClientHeight = 329
   ClientWidth = 388
   Color = clWhite
   DoubleBuffered = True
@@ -17,6 +17,8 @@ object FormAbout: TFormAbout
   Position = poMainFormCenter
   OnCreate = FormCreate
   OnKeyUp = FormKeyUp
+  OnResize = FormResize
+  OnShow = FormShow
   TextHeight = 15
   object Logo: TVirtualImage
     AlignWithMargins = True
@@ -33,7 +35,7 @@ object FormAbout: TFormAbout
     ImageCollection = FormMain.ImageCollection
     ImageWidth = 0
     ImageHeight = 0
-    ImageIndex = 15
+    ImageIndex = 20
     ImageName = 'icon'
     ExplicitLeft = 152
     ExplicitTop = 8
@@ -118,7 +120,7 @@ object FormAbout: TFormAbout
     Margins.Top = 0
     Align = alTop
     Alignment = taCenter
-    Caption = 'www.github.com/darkcodersc'
+    Caption = 'www.github.com/PhrozenIO'
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clWindowText
     Font.Height = -12
@@ -126,8 +128,7 @@ object FormAbout: TFormAbout
     Font.Style = [fsUnderline]
     ParentFont = False
     OnClick = Label5Click
-    ExplicitTop = 217
-    ExplicitWidth = 161
+    ExplicitWidth = 152
   end
   object Label1: TLabel
     AlignWithMargins = True
@@ -147,24 +148,37 @@ object FormAbout: TFormAbout
     Font.Style = [fsUnderline]
     ParentFont = False
     OnClick = Label1Click
-    ExplicitLeft = 8
-    ExplicitWidth = 377
+    ExplicitWidth = 92
   end
-  object ButtonClose: TButton
+  object ImageFlag: TVirtualImage
+    Left = 211
+    Top = 61
+    Width = 48
+    Height = 48
+    ImageCollection = FormMain.ImageCollection
+    ImageWidth = 0
+    ImageHeight = 0
+    ImageIndex = 25
+    ImageName = 'icons8-france'
+  end
+  object ImageRepo: TVirtualImage
     AlignWithMargins = True
-    Left = 128
-    Top = 275
-    Width = 132
-    Height = 25
-    Margins.Left = 128
-    Margins.Top = 8
-    Margins.Right = 128
-    Margins.Bottom = 8
-    Align = alBottom
-    Caption = 'Close'
-    TabOrder = 0
-    OnClick = ButtonCloseClick
-    ExplicitTop = 229
-    ExplicitWidth = 113
+    Left = 16
+    Top = 269
+    Width = 356
+    Height = 44
+    Cursor = crHandPoint
+    Margins.Left = 16
+    Margins.Top = 16
+    Margins.Right = 16
+    Margins.Bottom = 16
+    Align = alTop
+    Center = True
+    ImageCollection = FormMain.ImageCollection
+    ImageWidth = 0
+    ImageHeight = 0
+    ImageIndex = 27
+    ImageName = '92813512-27f0bb80-f376-11ea-8562'
+    OnClick = ImageRepoClick
   end
 end

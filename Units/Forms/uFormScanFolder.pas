@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -31,22 +31,24 @@ type
     PanelBottom: TPanel;
     ButtonValidate: TSpeedButton;
     ButtonCancel: TSpeedButton;
-    PanelBackground: TPanel;
-    PanelCore: TPanel;
     PanelForm: TPanel;
     Label1: TLabel;
-    EditDirectory: TButtonedEdit;
-    PanelWarning: TPanel;
-    Label4: TLabel;
-    IconInfo: TVirtualImage;
-    CheckBoxRecursive: TCheckBox;
-    CheckBoxDeepScan: TCheckBox;
     Label2: TLabel;
+    Shape1: TShape;
     EditRegex: TButtonedEdit;
+    GroupBoxExtraOptions: TGroupBox;
+    CheckBoxRecursive: TCheckBox;
+    Panel1: TPanel;
+    Label3: TLabel;
+    VirtualImage1: TVirtualImage;
+    PanelPath: TPanel;
+    EditDirectory: TButtonedEdit;
+    EditFileFilter: TButtonedEdit;
     procedure ButtonCancelClick(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure ButtonValidateClick(Sender: TObject);
     procedure EditDirectoryRightButtonClick(Sender: TObject);
+    procedure FormShow(Sender: TObject);
   private
     { Private declarations }
   public
@@ -77,7 +79,7 @@ begin
     Exit();
   end;
 
-  if not DirectoryExists(EditDirectory.Text) then
+  if not System.SysUtils.DirectoryExists(EditDirectory.Text) then
     Application.MessageBox(
       PWideChar(Format('Directory "%s" does not exists.', [EditDirectory.Text])),
       'Error',
@@ -87,8 +89,8 @@ begin
     FormThreadManager.AddWorkerAndStart(
       TScanFilesThread.Create(
         EditDirectory.Text,
-        CheckBoxDeepScan.Checked,
         CheckBoxRecursive.Checked,
+        EditFileFilter.Text,
         EditRegex.Text
       )
     );
@@ -115,6 +117,11 @@ begin
     13 : ButtonValidate.Click();
     27 : ButtonCancel.Click();
   end;
+end;
+
+procedure TFormScanFolder.FormShow(Sender: TObject);
+begin
+  EditDirectory.SetFocus();
 end;
 
 end.

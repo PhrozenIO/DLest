@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -23,7 +23,9 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, VirtualTrees, Vcl.Menus;
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, VirtualTrees, Vcl.Menus, VCL.ImgList,
+  VirtualTrees.BaseAncestorVCL, VirtualTrees.BaseTree, VirtualTrees.AncestorVCL,
+  VirtualTrees.Types;
 
 type
   TLogLevel = (
@@ -58,7 +60,8 @@ type
       TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
       CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect);
     procedure Clear1Click(Sender: TObject);
-  private
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+  protected
     {@M}
     procedure CreateParams(var Params: TCreateParams); override;
   public
@@ -85,6 +88,14 @@ begin
   Params.ExStyle := Params.ExStyle and NOT WS_EX_APPWINDOW;
 
   Params.WndParent := 0;
+end;
+
+procedure TFormLogs.FormKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  case Key of
+    27 : self.Close();
+  end;
 end;
 
 procedure TFormLogs.Clear1Click(Sender: TObject);

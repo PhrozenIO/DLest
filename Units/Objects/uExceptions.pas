@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -24,7 +24,7 @@ interface
 uses System.SysUtils;
 
 type
-  EPsyloException = class(Exception)
+  EPhrozenException = class(Exception)
   private
     FDisplay : Boolean;
   public
@@ -35,7 +35,7 @@ type
     property Display : Boolean read FDisplay;
   end;
 
-  EWindowsException = class(EPsyloException)
+  EWindowsException = class(EPhrozenException)
   private
     FLastError : Integer;
   public
@@ -53,7 +53,7 @@ type
     peekInvalidArchitecture
   );
 
-  EPortableExecutableException = class(EPsyloException)
+  EPortableExecutableException = class(EPhrozenException)
   public
     {@C}
     constructor Create(const AExceptionKind : TPEExceptionKind; const ADisplay : Boolean = False); overload;
@@ -63,10 +63,10 @@ implementation
 
 uses Winapi.Windows;
 
-(* EPsyloException *)
+(* EPhrozenException *)
 
-{ EPsyloException.Create }
-constructor EPsyloException.Create(const AMessage : String; const ADisplay : Boolean = False);
+{ EPhrozenException.Create }
+constructor EPhrozenException.Create(const AMessage : String; const ADisplay : Boolean = False);
 begin
   inherited Create(AMessage);
   ///

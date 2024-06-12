@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -32,7 +32,7 @@ type
   private
     FDirectory   : String;
     FRecursive   : Boolean;
-    FDeepScan    : Boolean;
+    FFileFilter  : String;
     FFilterRegex : String;
 
     FForm        : TForm;
@@ -42,7 +42,7 @@ type
 
   public
     {@C}
-    constructor Create(const ADirectory : String; const ADeepScan : Boolean = False; const ARecursive : Boolean = False; const AFilterRegex : String = ''); overload;
+    constructor Create(const ADirectory : String; const ARecursive : Boolean = False; const AFileFilter : String = '*.*'; const AFilterRegex : String = ''); overload;
   end;
 
 implementation
@@ -54,7 +54,6 @@ uses uFormMain, uFormTask, uFunctions, uFormThreadManager, uEnumExportsThread,
 procedure TScanFilesThread.ThreadExecute();
 var AFiles         : TStringList;
     AFilteredFiles : TStringList;
-    AWildCard      : String;
     ACaption       : String;
     AFile          : String;
     AValidated     : Boolean;
@@ -68,62 +67,66 @@ begin
     AFiles := TStringList.Create();
     AFilteredFiles := TStringList.Create();
     try
-      if FDeepScan then
-        AWildCard := '*.*'
-      else
-        AWildCard := '*.dll';
-      ///
-
       ACaption := FDirectory;
       if FRecursive then
         ACaption := '+' + ACaption;
 
-      EnumFilesInDirectory(AFiles, FDirectory, AWildCard, FRecursive, self);
+      EnumFilesInDirectory(AFiles, FDirectory, FFileFilter, FRecursive, self);
 
-      if FDeepScan or (not FFilterRegex.IsEmpty) then begin
-        for AFile in AFiles do begin
-          // Deep Scan
-          if FDeepScan then begin
-            if not FastPECheck(AFile) then
-              continue;
-          end;
+      for AFile in AFiles do begin
+        if Terminated then
+          break;
+        ///
 
-          // Regex Filter Search
-          if not FFilterRegex.IsEmpty then begin
+        if not FastPECheck(AFile) then
+          continue;
+
+        // Regex Filter Search
+        if not FFilterRegex.IsEmpty then begin
+          try
+            AValidated := False;
+            ///
+
+            AParser := TPortableExecutable.CreateFromFile(AFile, []);
             try
-              AValidated := False;
-              ///
+              for AExport in AParser.ExportList do begin
+                if Terminated then
+                  break;
+                ///
 
-              AParser := TPortableExecutable.CreateFromFile(AFile, []);
-              try
-                for AExport in AParser.ExportList do begin
-                  if TRegEx.IsMatch(AExport.DisplayName, FFilterRegex) then begin
-                    AValidated := True;
+                if TRegEx.IsMatch(AExport.DisplayName, FFilterRegex) then begin
+                  AValidated := True;
 
-                    break;
-                  end;
+                  break;
                 end;
-              finally
-                if Assigned(AParser) then
-                  FreeAndNil(AParser);
               end;
-            except
-              AValidated := False;
+            finally
+              if Assigned(AParser) then
+                FreeAndNil(AParser);
             end;
-
-            if not AValidated then
-              continue;
+          except
+            AValidated := False;
           end;
 
-          ///
-          AFilteredFiles.Add(AFile);
+          if not AValidated then
+            continue;
         end;
-      end else
-        AFilteredFiles.Assign(AFiles);
 
-      Synchronize(procedure begin
-        FormThreadManager.AddWorkerAndStart(TEnumExportsThread.Create(AFilteredFiles, ACaption));
-      end);
+        ///
+        AFilteredFiles.Add(CleanFileName(AFile));
+      end;
+
+
+      if not Terminated then
+        Synchronize(procedure begin
+          FormThreadManager.AddWorkerAndStart(
+            TEnumExportsThread.Create(
+              AFilteredFiles,
+              ACaption,
+              SystemFolderIcon()
+            )
+          );
+        end);
     finally
       FreeAndNil(AFilteredFiles);
       FreeAndNil(AFiles);
@@ -136,14 +139,14 @@ begin
 end;
 
 { TScanFilesThread.Create }
-constructor TScanFilesThread.Create(const ADirectory : String; const ADeepScan : Boolean = False; const ARecursive : Boolean = False; const AFilterRegex : String = '');
+constructor TScanFilesThread.Create(const ADirectory : String; const ARecursive : Boolean = False; const AFileFilter : String = '*.*'; const AFilterRegex : String = '');
 begin
   inherited Create();
   ///
 
   FDirectory   := IncludeTrailingPathDelimiter(ADirectory);
   FRecursive   := ARecursive;
-  FDeepScan    := ADeepScan;
+  FFileFilter  := AFileFilter;
   FFilterRegex := AFilterRegex.Trim();
 
   FForm := TFormTask.Create(FormMain, self);

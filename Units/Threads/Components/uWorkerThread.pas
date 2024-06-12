@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -50,29 +50,19 @@ uses Winapi.Windows, uFormMain, System.SysUtils;
 
 { TWorkerThread.Execute }
 procedure TWorkerThread.Execute();
-var AOnError     : Boolean;
-    AErrorDetail : String;
 begin
-  AOnError     := False;
-  AErrorDetail := '';
-  ///
-
   try
     try
       ThreadExecute();
     except
       on E : Exception do begin
-        AOnError := True;
-        AErrorDetail := E.Message;
-        ///
-
         Synchronize(procedure begin
           FormMain.OnException(self, E);
         end);
       end;
     end;
   finally
-    ExitThread(0);
+    ExitThread(0); // !important
   end;
 end;
 
@@ -108,12 +98,11 @@ end;
 function TWorkerThread.GetIsTerminated() : Boolean;
 var AExitCode : Cardinal;
 begin
-  result := self.Terminated;
+  result := False;
   ///
 
-  if not result then
-    if GetExitCodeThread(self.Handle, AExitCode) then
-      result := (AExitCode = 0);
+  if GetExitCodeThread(self.Handle, AExitCode) then
+    result := (AExitCode = 0);
 end;
 
 

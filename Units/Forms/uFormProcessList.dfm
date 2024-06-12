@@ -11,7 +11,10 @@ object FormProcessList: TFormProcessList
   Font.Height = -12
   Font.Name = 'Segoe UI'
   Font.Style = []
+  KeyPreview = True
+  Menu = MainMenu
   Position = poOwnerFormCenter
+  OnKeyDown = FormKeyDown
   OnResize = FormResize
   OnShow = FormShow
   TextHeight = 15
@@ -20,7 +23,7 @@ object FormProcessList: TFormProcessList
     Left = 4
     Top = 4
     Width = 689
-    Height = 336
+    Height = 332
     Margins.Left = 4
     Margins.Top = 4
     Margins.Right = 4
@@ -42,16 +45,14 @@ object FormProcessList: TFormProcessList
     MinPosition = 0.020000000000000000
     Align = alClient
     TabOrder = 0
-    ExplicitWidth = 717
-    ExplicitHeight = 369
     DesignSize = (
       689
-      336)
+      332)
     object PanelProcess: TPanel
       Left = 0
       Top = 0
       Width = 689
-      Height = 168
+      Height = 166
       Anchors = []
       BevelOuter = bvNone
       Color = 16448250
@@ -60,9 +61,9 @@ object FormProcessList: TFormProcessList
       object VSTProcess: TVirtualStringTree
         AlignWithMargins = True
         Left = 2
-        Top = 24
-        Width = 699
-        Height = 158
+        Top = 2
+        Width = 685
+        Height = 162
         Margins.Left = 2
         Margins.Top = 2
         Margins.Right = 2
@@ -87,6 +88,7 @@ object FormProcessList: TFormProcessList
         Colors.UnfocusedColor = clGray
         Colors.UnfocusedSelectionColor = clWhite
         Colors.UnfocusedSelectionBorderColor = clWhite
+        DefaultNodeHeight = 19
         Header.AutoSizeIndex = 0
         Header.Options = [hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible, hoHeaderClickAutoSort]
         Images = FormMain.VirtualImageList
@@ -123,42 +125,12 @@ object FormProcessList: TFormProcessList
             Width = 300
           end>
       end
-      object ToolBar: TToolBar
-        Left = 0
-        Top = 0
-        Width = 703
-        Height = 22
-        AutoSize = True
-        ButtonWidth = 33
-        Caption = 'ToolBar'
-        DrawingStyle = dsGradient
-        GradientEndColor = clWhite
-        GradientStartColor = 16448250
-        HotTrackColor = 15132390
-        Images = FormMain.VirtualImageList
-        List = True
-        TabOrder = 1
-        Transparent = False
-        ExplicitWidth = 689
-        object ToolRefresh: TToolButton
-          Left = 0
-          Top = 0
-          Hint = 'Refresh'
-          AutoSize = True
-          Caption = '='
-          ImageIndex = 26
-          ImageName = 'button-update'
-          ParentShowHint = False
-          ShowHint = True
-          OnClick = ToolRefreshClick
-        end
-      end
     end
     object PanelModules: TPanel
       Left = 0
-      Top = 171
+      Top = 169
       Width = 689
-      Height = 165
+      Height = 163
       Anchors = []
       BevelOuter = bvNone
       Color = 16448250
@@ -168,8 +140,8 @@ object FormProcessList: TFormProcessList
         AlignWithMargins = True
         Left = 2
         Top = 2
-        Width = 699
-        Height = 178
+        Width = 685
+        Height = 159
         Margins.Left = 2
         Margins.Top = 2
         Margins.Right = 2
@@ -194,6 +166,7 @@ object FormProcessList: TFormProcessList
         Colors.UnfocusedColor = clGray
         Colors.UnfocusedSelectionColor = clWhite
         Colors.UnfocusedSelectionBorderColor = clWhite
+        DefaultNodeHeight = 19
         Header.AutoSizeIndex = -1
         Header.Options = [hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible, hoHeaderClickAutoSort]
         Images = FormMain.VirtualImageList
@@ -245,40 +218,48 @@ object FormProcessList: TFormProcessList
   object PanelMessage: TPanel
     AlignWithMargins = True
     Left = 4
-    Top = 348
+    Top = 344
     Width = 689
     Height = 41
     Margins.Left = 4
     Margins.Top = 4
     Margins.Right = 4
-    Margins.Bottom = 4
+    Margins.Bottom = 8
     Align = alBottom
     BevelOuter = bvNone
     Color = clWhite
     ParentBackground = False
     TabOrder = 1
+    ExplicitTop = 312
+    ExplicitWidth = 679
     object VirtualImage1: TVirtualImage
-      Left = 0
-      Top = 0
-      Width = 17
-      Height = 41
-      Align = alLeft
-      ImageCollection = FormMain.ImageCollection
-      ImageWidth = 0
-      ImageHeight = 0
-      ImageIndex = 5
-      ImageName = 'warning'
-    end
-    object LabelMessage: TLabel
       AlignWithMargins = True
-      Left = 25
+      Left = 8
       Top = 0
-      Width = 671
-      Height = 30
+      Width = 24
+      Height = 41
       Margins.Left = 8
       Margins.Top = 0
       Margins.Right = 0
       Margins.Bottom = 0
+      Align = alLeft
+      ImageCollection = FormMain.ImageCollection
+      ImageWidth = 0
+      ImageHeight = 0
+      ImageIndex = 17
+      ImageName = 'icons8-warning'
+      ExplicitLeft = 0
+    end
+    object LabelMessage: TLabel
+      AlignWithMargins = True
+      Left = 40
+      Top = 4
+      Width = 624
+      Height = 30
+      Margins.Left = 8
+      Margins.Top = 4
+      Margins.Right = 4
+      Margins.Bottom = 4
       Align = alClient
       BiDiMode = bdLeftToRight
       Caption = 
@@ -297,6 +278,13 @@ object FormProcessList: TFormProcessList
     object OpenProcess1: TMenuItem
       Caption = 'Open Process'
       OnClick = OpenProcess1Click
+    end
+    object N4: TMenuItem
+      Caption = '-'
+    end
+    object CalculateSelectedImageFileHashes1: TMenuItem
+      Caption = 'Calculate Selected Image File Hashes'
+      OnClick = CalculateSelectedImageFileHashes1Click
     end
   end
   object PopupModules: TPopupMenu
@@ -329,9 +317,27 @@ object FormProcessList: TFormProcessList
     object N2: TMenuItem
       Caption = '-'
     end
+    object CalculateSelectedImageFileHashes2: TMenuItem
+      Caption = 'Calculate Selected Image File Hashes'
+      OnClick = CalculateSelectedImageFileHashes2Click
+    end
+    object N5: TMenuItem
+      Caption = '-'
+    end
     object DumpReconstructedImageofSelectedModules1: TMenuItem
       Caption = 'Dump Reconstructed Image of Selected Module(s)'
       OnClick = DumpReconstructedImageofSelectedModules1Click
+    end
+  end
+  object MainMenu: TMainMenu
+    Left = 212
+    Top = 116
+    object File1: TMenuItem
+      Caption = 'File'
+      object Refresh1: TMenuItem
+        Caption = 'Refresh'
+        OnClick = Refresh1Click
+      end
     end
   end
 end

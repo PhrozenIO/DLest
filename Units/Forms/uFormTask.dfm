@@ -29,7 +29,7 @@ object FormTask: TFormTask
     Color = clWhite
     ParentBackground = False
     TabOrder = 0
-    ExplicitHeight = 88
+    ExplicitHeight = 89
     object VirtualImage1: TVirtualImage
       AlignWithMargins = True
       Left = 8
@@ -44,8 +44,8 @@ object FormTask: TFormTask
       ImageCollection = FormMain.ImageCollection
       ImageWidth = 0
       ImageHeight = 0
-      ImageIndex = 8
-      ImageName = 'test-filled-gear-filled'
+      ImageIndex = 19
+      ImageName = 'icons8-brain'
       ExplicitLeft = 0
       ExplicitTop = 0
       ExplicitWidth = 64
@@ -61,8 +61,8 @@ object FormTask: TFormTask
     Color = clWhite
     ParentBackground = False
     TabOrder = 1
-    ExplicitWidth = 370
-    ExplicitHeight = 88
+    ExplicitWidth = 374
+    ExplicitHeight = 89
     object Label1: TLabel
       AlignWithMargins = True
       Left = 8
@@ -97,7 +97,7 @@ object FormTask: TFormTask
       ParentDoubleBuffered = False
       Style = pbstMarquee
       TabOrder = 0
-      ExplicitWidth = 354
+      ExplicitWidth = 358
     end
   end
   object PanelBottom: TPanel
@@ -108,11 +108,11 @@ object FormTask: TFormTask
     Margins.Top = 8
     Align = alBottom
     BevelOuter = bvNone
-    Color = 16119285
+    Color = clWhitesmoke
     ParentBackground = False
     TabOrder = 2
-    ExplicitTop = 88
-    ExplicitWidth = 434
+    ExplicitTop = 89
+    ExplicitWidth = 438
     object ButtonCancel: TButton
       AlignWithMargins = True
       Left = 365
@@ -128,7 +128,7 @@ object FormTask: TFormTask
       Caption = 'Cancel'
       TabOrder = 0
       OnClick = ButtonCancelClick
-      ExplicitLeft = 351
+      ExplicitLeft = 355
     end
   end
 end

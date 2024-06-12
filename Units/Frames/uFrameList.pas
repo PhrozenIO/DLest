@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -25,22 +25,42 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, VirtualTrees,
   Vcl.ExtCtrls, OMultiPanel, uPortableExecutable, Vcl.Menus, Vcl.ComCtrls,
-  Vcl.StdCtrls, Vcl.Buttons, uTypes, uFormExtendedLibrariesInformation;
+  Vcl.StdCtrls, Vcl.Buttons, uTypes, uFormExtendedLibrariesInformation,
+  VirtualTrees.BaseAncestorVCL, VirtualTrees.BaseTree, VirtualTrees.AncestorVCL,
+  VirtualTrees.Types, uConstants;
 
 type
   TTreeData = record
     ImagePath   : String;
     ExportEntry : TExportEntry;
     StateIndex  : Integer;
-    ExportCount : UInt64; // I see things in big
+    ExportCount : UInt64;
   end;
   PTreeData = ^TTreeData;
+
+  TExportStatistics = record
+    Libraries            : UInt64;
+    FilteredLibraries    : UInt64;
+    Functions            : UInt64;
+    FwdFunctions         : UInt64;
+    FilteredFwdFunctions : UInt64;
+    FilteredFunctions    : UInt64;
+    COM                  : UInt64;
+    FilteredCOM          : UInt64;
+
+    ///
+    function Total() : UInt64;
+    function TotalFiltered() : UInt64;
+  end;
+
+  TFilterExportKindOptions = set of TExportKind;
+
+  (* TFrameList *)
 
   TFrameList = class(TFrame)
     PopupMenu: TPopupMenu;
     ExpandAll1: TMenuItem;
     CollapseAll1: TMenuItem;
-    ProgressBar: TProgressBar;
     N1: TMenuItem;
     CloseTab1: TMenuItem;
     PanelSearch: TPanel;
@@ -68,6 +88,24 @@ type
     N7: TMenuItem;
     LibrariesViewExtendedInfo1: TMenuItem;
     ButtonSearch: TSpeedButton;
+    UnprotectSearch1: TMenuItem;
+    SearchUnprotectSelectedLibraryName1: TMenuItem;
+    SearchUnprotectSelectedAPIName1: TMenuItem;
+    PanelProgressTask: TPanel;
+    ProgressBarTask: TProgressBar;
+    ButtonCancelTask: TSpeedButton;
+    Filter1: TMenuItem;
+    N8: TMenuItem;
+    ExportFunctions1: TMenuItem;
+    ExportFunctions2: TMenuItem;
+    ForwardedFunctions1: TMenuItem;
+    COMMethod1: TMenuItem;
+    COMProperties1: TMenuItem;
+    COMUnknown1: TMenuItem;
+    N10: TMenuItem;
+    ResetClear1: TMenuItem;
+    N9: TMenuItem;
+    CalculateSelectedLibrariesHashes1: TMenuItem;
     procedure VSTChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFreeNode(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTFocusChanged(Sender: TBaseVirtualTree; Node: PVirtualNode;
@@ -106,99 +144,255 @@ type
     procedure ButtonSearchClick(Sender: TObject);
     procedure EditRegexKeyDown(Sender: TObject; var Key: Word;
       Shift: TShiftState);
+    procedure SearchUnprotectSelectedLibraryName1Click(Sender: TObject);
+    procedure SearchUnprotectSelectedAPIName1Click(Sender: TObject);
+    procedure ButtonCancelTaskClick(Sender: TObject);
+    procedure ResetClear1Click(Sender: TObject);
+    procedure FilterMenuItemClick(Sender: TObject);
+    procedure CalculateSelectedLibrariesHashes1Click(Sender: TObject);
   private
-    FGrouped      : Boolean;
-    FTotalExports : UInt64;
-    FExtForm      : TFormExtendedLibrariesInformation;
+    FGrouped          : Boolean;
+    FTotalExports     : UInt64;
+    FExtForm          : TFormExtendedLibrariesInformation;
+    FExtInfoLoaded    : Boolean;
+    FDestroyRequested : Boolean;
+    FEnumTask         : TThread;
 
     {@M}
-    procedure FilterList(const AReset : Boolean);
+    procedure FilterList();
     procedure ExportToJson(const AMode : TJSONExportMode);
     procedure CopyToClipboard(ASender : TObject);
     function HaveExportInSelection() : Boolean;
     function HiddenNodeCount() : Cardinal;
     function VisibleNodeCount() : Cardinal;
-    function GetExportTypeIndex(const AExport : TExportEntry) : Byte;
-    function GetExportTypeName(const AExport : TExportEntry) : String;
+    procedure OnBeginUpdateMessage(var AMessage : TMessage); message WM_MESSAGE_BEGIN_UPDATE;
+    procedure OnIncrementProgressBarMessage(var AMessage: TMessage); message WM_MESSAGE_INCREMENT_PB;
+    procedure OnEndUpdateMessage(var AMessage : TMessage); message WM_MESSAGE_END_UPDATE;
+    function GetUpdating() : Boolean;
   private
     {@M}
     procedure DoSearch();
-    procedure SetTotalExports(const AValue : UInt64);
+    procedure UpdateStatusBar();
   public
     {@C}
     constructor Create(AOwner : TComponent); override;
     destructor Destroy(); override;
 
     {@M}
-    procedure BeginUpdate();
-    procedure EndUpdate();
+    procedure GetStatistics(var AStatistics : TExportStatistics);
+    procedure SetupOrRefreshExtendedLibrariesInformation(const AForce : Boolean = False);
+
+    {@G}
+    property Updating : Boolean read GetUpdating;
 
     {@G/S}
-    property Grouped      : Boolean                           read FGrouped      write FGrouped;
-    property TotalExports : UInt64                            read FTotalExports write SetTotalExports;
-    property ExtForm      : TFormExtendedLibrariesInformation read FExtForm      write FExtForm;
+    property ExtForm : TFormExtendedLibrariesInformation read FExtForm write FExtForm;
   end;
+
+  ///
 
   const AUTO_SEARCH_DELTA = 1000;
 
 implementation
 
-uses uFormMain, uConstants, System.Math, uGraphicUtils, System.RegularExpressions,
+uses uFormMain, System.Math, uGraphicUtils, System.RegularExpressions,
      uFunctions, uFormThreadManager, uEnumExportsThread, uExportExportsToJsonThread,
-     VCL.FileCtrl, uVirtualStringTreeUtils, VCL.Clipbrd;
+     VCL.FileCtrl, uVirtualStringTreeUtils, VCL.Clipbrd, Generics.Collections,
+  uFormHashMe;
 
 {$R *.dfm}
 
-function TFrameList.GetExportTypeName(const AExport : TExportEntry) : String;
-begin
-  case GetExportTypeIndex(AExport) of
-    1 : result := 'Exported Function';
-    2 : result := 'COM Method';
-    3 : result := 'COM Property';
-    4 : result := 'COM Unknown';
+(* TExportStatistics *)
 
-    else
-      result := 'Unknown';
-  end;
+function TExportStatistics.Total() : UInt64;
+begin
+  result := self.Functions + self.FwdFunctions + self.COM;
 end;
 
-function TFrameList.GetExportTypeIndex(const AExport : TExportEntry) : Byte;
+function TExportStatistics.TotalFiltered() : UInt64;
 begin
-  result := 0;
-  ///
+  result := self.FilteredFunctions + self.FilteredFwdFunctions +
+            self.FilteredCOM;
+end;
 
-  if not Assigned(AExport) then
+(* TFrameList *)
+
+procedure TFrameList.SetupOrRefreshExtendedLibrariesInformation(const AForce : Boolean = False);
+var AImageList : TDictionary<String (* Image Path *), UInt64 (* Export Count *)>;
+begin
+  if (AForce = False) and FExtInfoLoaded then
     Exit();
   ///
 
-  if AExport is TPEExportEntry then
-    result := 1
-  else if AExport is TCOMExportEntry then begin
-    case TCOMExportEntry(AExport).COMKind of
-      comkMethod   : result := 2;
-      comkProperty : result := 3;
+  AImageList := TDictionary<String, UInt64>.Create();
+  try
+    // Retrieve Images
+    if not FGrouped then begin
+      // Single Malt
+      var pNode := VST.GetFirst(True);
+      if Assigned(pNode) then begin
+        if Assigned(pNode.GetData()) then
+          AImageList.Add(PTreeData(pNode.GetData)^.ImagePath, FTotalExports);
+      end;
+    end else begin
+      // Grouped Mode
+      for var pNode in VST.Nodes do begin
+        if VST.GetNodeLevel(pNode) <> 0 then
+          continue;
 
-      else
-        result := 4;
+        var pData : PTreeData := pNode.GetData;
+        if not Assigned(pData) then
+          continue;
+        ///
+
+        AImageList.Add(pData^.ImagePath, pData^.ExportCount);
+      end;
+    end;
+  finally
+    FExtForm.RegisterImages(AImageList);
+
+    ///
+    FExtInfoLoaded := True;
+  end;
+end;
+
+function TFrameList.GetUpdating() : Boolean;
+begin
+  result := (FEnumTask <> nil);
+end;
+
+procedure TFrameList.UpdateStatusBar();
+begin
+  if self.Parent = FormMain.Pages.ActivePage then
+    FormMain.UpdateStatusBar();
+end;
+
+procedure TFrameList.GetStatistics(var AStatistics : TExportStatistics);
+var pNode    : PVirtualNode;
+    pData    : PTreeData;
+    AVisible : Boolean;
+begin
+  ZeroMemory(@AStatistics, SizeOf(TExportStatistics));
+  ///
+
+  if Assigned(FEnumTask) or FDestroyRequested then
+    Exit();
+
+  for pNode in VST.Nodes do begin
+    pData := pNode.GetData;
+    if not Assigned(pData) then
+      continue;
+    ///
+
+    AVisible := vsVisible in pNode.States;
+
+    // Libraries
+    if FGrouped then begin
+      if not Assigned(pData^.ExportEntry) then begin
+        if AVisible then
+          Inc(AStatistics.Libraries)
+        else
+          Inc(AStatistics.FilteredLibraries);
+      end;
+    end else
+      AStatistics.Libraries := 1;
+
+    // Exports
+    if Assigned(pData^.ExportEntry) then begin
+      case pData^.ExportEntry.Kind of
+        ekExportFunction : begin
+          if AVisible then
+            Inc(AStatistics.Functions)
+          else
+            Inc(AStatistics.FilteredFunctions);
+        end;
+
+        ekForwardedFunction : begin
+          if AVisible then
+            Inc(AStatistics.FwdFunctions)
+          else
+            Inc(AStatistics.FilteredFwdFunctions);
+        end;
+
+        ekCOMMethod, ekCOMProperty, ekCOMUnknown : begin
+          if AVisible then
+            Inc(AStatistics.COM)
+          else
+            Inc(AStatistics.FilteredCOM);
+        end;
+      end;
     end;
   end;
 end;
 
-procedure TFrameList.DoSearch();
-var ADoReset : Boolean;
+procedure TFrameList.OnIncrementProgressBarMessage(var AMessage: TMessage);
 begin
-  ADoReset := Length(EditRegex.Text) = 0;
-
-  ///
-  FilterList(ADoReset);
+  ProgressBarTask.Position := ProgressBarTask.Position + 1;
 end;
 
-procedure TFrameList.SetTotalExports(const AValue : UInt64);
+procedure TFrameList.OnBeginUpdateMessage(var AMessage : TMessage);
 begin
-  FTotalExports := AValue;
+  FGrouped := PBeginUpdateMessageParam(AMessage.LParam)^.Grouped;
+  FEnumTask := PBeginUpdateMessageParam(AMessage.LParam)^.Task;
+  ProgressBarTask.Max := PBeginUpdateMessageParam(AMessage.LParam)^.Max;
+
+  Dispose(PBeginUpdateMessageParam(AMessage.LParam));
   ///
 
-  ButtonSearch.Visible := FTotalExports > AUTO_SEARCH_DELTA;
+  PanelProgressTask.Visible := True;
+
+  EditRegex.Enabled := False;
+
+  VST.Enabled := False;
+
+  FormMain.Pages.PopupMenu := nil;
+
+  ///
+  VST.BeginUpdate();
+  FExtForm.BeginUpdate();
+
+  UpdateStatusBar();
+end;
+
+procedure TFrameList.OnEndUpdateMessage(var AMessage : TMessage);
+var ACanceled : Boolean;
+begin
+  FTotalExports := PEndUpdateMessageParam(AMessage.LParam)^.TotalExports;
+  ACanceled := PEndUpdateMessageParam(AMessage.LParam)^.Canceled;
+
+  Dispose(PEndUpdateMessageParam(AMessage.LParam));
+  ///
+
+  if ACanceled then
+    FormMain.CloseTab(TTabSheet(Parent) (* TTabSheet *))
+  else begin
+    ButtonSearch.Visible := FTotalExports > AUTO_SEARCH_DELTA;
+
+    PanelProgressTask.Visible := False;
+
+    FormMain.Pages.PopupMenu := FormMain.PopupTabs;
+
+    EditRegex.Enabled := True;
+
+    VST.EndUpdate();
+    FExtForm.EndUpdate();
+
+    VST.Enabled := True;
+
+    VST.FullExpand();
+
+    FEnumTask := nil;
+
+    UpdateStatusBar();
+
+    // Tiny hack to fix a glitch in VirtualStringTree header height
+    VST.Header.Height := self.ScaleValue(19);
+  end;
+end;
+
+procedure TFrameList.DoSearch();
+begin
+  FilterList();
 end;
 
 procedure TFrameList.CopyToClipboard(ASender : TObject);
@@ -248,21 +442,25 @@ begin
 
         3 : AStrings.Add(IntToStr(pData^.ExportEntry.Ordinal));
 
-        4 : AStrings.Add(pData^.ImagePath);
+        4 : AStrings.Add(pData^.ExportEntry.KindAsString);
+
+        5 : AStrings.Add(pData^.ImagePath);
         else
           // TODO
           if pData^.ExportEntry is TPEExportEntry then
-            AStrings.Add(Format('name:%s, address:0x%p, rel_address:0x%p, ordinal:%d, path:"%s"', [
+            AStrings.Add(Format('name:%s, address:0x%p, rel_address:0x%p, ordinal:%d, kind:%s, path:"%s"', [
               pData^.ExportEntry.DisplayName,
               Pointer(TPEExportEntry(pData^.ExportEntry).Address),
               Pointer(TPEExportEntry(pData^.ExportEntry).RelativeAddress),
               pData^.ExportEntry.Ordinal,
+              pData^.ExportEntry.KindAsString,
               pData^.ImagePath
             ]))
           else if pData^.ExportEntry is TCOMExportEntry then
-            AStrings.Add(Format('name:%s, ordinal:%d, path:"%s"', [
+            AStrings.Add(Format('name:%s, ordinal:%d, kind:%s, path:"%s"', [
               pData^.ExportEntry.DisplayName,
               pData^.ExportEntry.Ordinal,
+              pData^.ExportEntry.KindAsString,
               pData^.ImagePath
             ]))
       end;
@@ -280,6 +478,11 @@ end;
 procedure TFrameList.ExportEntireListToJson1Click(Sender: TObject);
 begin
   self.ExportToJson(jemAll);
+end;
+
+procedure TFrameList.FilterMenuItemClick(Sender: TObject);
+begin
+  FilterList();
 end;
 
 procedure TFrameList.ExportSelectedItemsToJson1Click(Sender: TObject);
@@ -304,33 +507,10 @@ begin
   self.ExportToJson(jemVisible);
 end;
 
-procedure TFrameList.BeginUpdate();
-begin
-  EditRegex.Enabled := False;
-  VST.Enabled := False;
-
-  FormMain.Pages.PopupMenu := nil;
-
-  FExtForm.BeginUpdate();
-
-  VST.BeginUpdate();
-end;
-
-procedure TFrameList.EndUpdate();
-begin
-  FormMain.Pages.PopupMenu := FormMain.PopupTabs;
-
-  EditRegex.Enabled := True;
-  VST.Enabled := True;
-
-  FExtForm.EndUpdate();
-
-  VST.EndUpdate();
-end;
-
-procedure TFrameList.FilterList(const AReset : Boolean);
-var pNode : PVirtualNode;
-    pData : PTreeData;
+procedure TFrameList.FilterList();
+var AFilterKindOptions : TFilterExportKindOptions;
+    pNode              : PVirtualNode;
+    pData              : PTreeData;
 
     // Required cause VST.VisibleCount does not seems to work well
     function GetVisibleNodesCount() : UInt64;
@@ -359,8 +539,6 @@ var pNode : PVirtualNode;
           continue;
         ///
 
-        AVisible := False;
-
         pChildNode := pNode.FirstChild;
         if not Assigned(pChildNode) then
           Exit();
@@ -384,6 +562,25 @@ var pNode : PVirtualNode;
     end;
 
 begin
+  AFilterKindOptions := [];
+  ///
+
+  if ExportFunctions1.Checked then
+    Include(AFilterKindOptions, ekExportFunction);
+
+  if ForwardedFunctions1.Checked then
+    Include(AFilterKindOptions, ekForwardedFunction);
+
+  if COMMethod1.Checked then
+    Include(AFilterKindOptions, ekCOMMethod);
+
+  if COMProperties1.Checked then
+    Include(AFilterKindOptions, ekCOMProperty);
+
+  if COMUnknown1.Checked then
+    Include(AFilterKindOptions, ekCOMUnknown);
+  ///
+
   VST.BeginUpdate();
   try
     VST.RootNode.TotalHeight := VST.DefaultNodeHeight;
@@ -398,17 +595,22 @@ begin
       if not Assigned(pData^.ExportEntry) then
         continue;
 
-      Include(pNode.States, vsVisible);
+      // Text Filter
+      var AFilteredByRegex : Boolean := False;
+      if Length(EditRegex.Text) > 0 then
+        AFilteredByRegex := not TRegEx.IsMatch(pData^.ExportEntry.DisplayName, EditRegex.Text);
 
-      if not AReset then begin
-        if TRegEx.IsMatch(pData^.ExportEntry.DisplayName, EditRegex.Text) then
-          Include(pNode.States, vsVisible)
-        else begin
-          Exclude(pNode.States, vsVisible);
+      // Type Filter
+      var AFilteredByType : Boolean := False;
+      if AFilterKindOptions <> [] then
+        AFilteredByType := not (pData^.ExportEntry.Kind in AFilterKindOptions);
 
-          self.EditRegex.RightButton.Visible := True;
-        end;
-      end;
+      var ADoFilter := AFilteredByType or AFilteredByRegex;
+
+      if ADoFilter then
+        Exclude(pNode.States, vsVisible)
+      else
+        Include(pNode.States, vsVisible);
     end;
   finally
     VST.EndUpdate();
@@ -418,23 +620,17 @@ begin
     VST.RootNode.TotalHeight := GetVisibleNodesCount() * VST.DefaultNodeHeight;
 
     VST.UpdateScrollBars(True);
-  end;
 
-  ///
-  if AReset then begin
-    EditRegex.RightButton.Visible := False;
-
-    EditRegex.OnChange := nil; // Dirty
-    try
-      EditRegex.Clear();
-    finally
-      EditRegex.OnChange := self.EditRegexChange; // Dirty
-    end;
+    ///
+    UpdateStatusBar();
   end;
 end;
 
 procedure TFrameList.LibrariesViewExtendedInfo1Click(Sender: TObject);
 begin
+  SetupOrRefreshExtendedLibrariesInformation();
+
+  ///
   ShowForm(FExtForm);
 end;
 
@@ -460,8 +656,12 @@ begin
   FGrouped                           := False;
   FTotalExports                      := 0;
   self.EditRegex.RightButton.Visible := False;
+  FDestroyRequested                  := False;
+  FExtInfoLoaded                     := False;
 
-  FExtForm := TFormExtendedLibrariesInformation.Create(FormMain);
+  FEnumTask := nil;
+
+  FExtForm := TFormExtendedLibrariesInformation.Create(FormMain, self);
 
   ButtonSearch.Visible := False;
 
@@ -471,6 +671,11 @@ end;
 
 destructor TFrameList.Destroy();
 begin
+  FDestroyRequested := True;
+
+  UpdateStatusBar();
+  ///
+
   if Assigned(FExtForm) then
     FreeAndNil(FExtForm);
 
@@ -478,9 +683,37 @@ begin
   inherited Destroy();
 end;
 
+procedure TFrameList.ButtonCancelTaskClick(Sender: TObject);
+begin
+  if Assigned(FEnumTask) then
+    FEnumTask.Terminate;
+end;
+
 procedure TFrameList.ButtonSearchClick(Sender: TObject);
 begin
   DoSearch();
+end;
+
+procedure TFrameList.CalculateSelectedLibrariesHashes1Click(Sender: TObject);
+var AFiles : TStringList;
+begin
+  AFiles := TStringList.Create();
+  try
+    for var pNode in VST.Nodes do begin
+      if (vsVisible in pNode.States) and (vsSelected in pNode.States) then begin
+        var pData : PTreeData := pNode.GetData;
+        ///
+
+        AFiles.Add(pData^.ImagePath);
+      end;
+    end;
+
+    ///
+    FormHashMe.AddFiles(AFiles);
+  finally
+    if Assigned(AFiles) then
+      FreeAndNil(AFiles);
+  end;
 end;
 
 procedure TFrameList.ClearSelection1Click(Sender: TObject);
@@ -502,6 +735,9 @@ procedure TFrameList.EditRegexChange(Sender: TObject);
 begin
   if FTotalExports <= AUTO_SEARCH_DELTA then
     DoSearch();
+
+  ///
+  TButtonedEdit(Sender).RightButton.Visible := Length(TButtonedEdit(Sender).Text) > 0;
 end;
 
 procedure TFrameList.EditRegexKeyDown(Sender: TObject; var Key: Word;
@@ -518,7 +754,10 @@ end;
 
 procedure TFrameList.EditRegexRightButtonClick(Sender: TObject);
 begin
-  FilterList(True);
+  TButtonedEdit(Sender).Clear();
+  ///
+
+  FilterList();
 end;
 
 procedure TFrameList.ExpandAll1Click(Sender: TObject);
@@ -607,11 +846,24 @@ begin
   self.ExportSelectedItemsToJson1.Enabled        := ASelectedCount = 1;
   self.ExportVisibleFilteredItemsToJson1.Enabled := (AHiddenNodeCount > 0) and (AVisibleNodeCount > 0);
   self.ExportEntireListToJson1.Enabled           := VST.RootNodeCount > 0;
+  self.CalculateSelectedLibrariesHashes1.Enabled := ASelectedCount >= 1;
 end;
 
 procedure TFrameList.RenameTab1Click(Sender: TObject);
 begin
   FormMain.RenameActiveTab();
+end;
+
+procedure TFrameList.ResetClear1Click(Sender: TObject);
+begin
+  ExportFunctions1.Checked := False;
+  ForwardedFunctions1.Checked := False;
+  COMMethod1.Checked := False;
+  COMProperties1.Checked := False;
+  COMUnknown1.Checked := False;
+
+  ///
+  self.FilterList();
 end;
 
 procedure TFrameList.SearchAPIName1Click(Sender: TObject);
@@ -662,6 +914,35 @@ begin
   GoogleSearch(Format('"%s"', [ExtractFileName(pData^.ImagePath)]));
 end;
 
+procedure TFrameList.SearchUnprotectSelectedAPIName1Click(Sender: TObject);
+var pData : PTreeData;
+begin
+  if VST.FocusedNode = nil then
+    Exit();
+  ///
+
+  pData := VST.FocusedNode.GetData;
+
+  if not Assigned(pData^.ExportEntry) then
+    Exit();
+
+  ///
+  UnprotectSearch(pData^.ExportEntry.DisplayName);
+end;
+
+procedure TFrameList.SearchUnprotectSelectedLibraryName1Click(Sender: TObject);
+var pData : PTreeData;
+begin
+  if VST.FocusedNode = nil then
+    Exit();
+  ///
+
+  pData := VST.FocusedNode.GetData;
+
+  ///
+  UnprotectSearch(ExtractFileName(pData^.ImagePath));
+end;
+
 procedure TFrameList.SelectAll1Click(Sender: TObject);
 begin
   VST.SelectAll(True);
@@ -705,19 +986,10 @@ begin
   AColorB := clNone;
 
   if Assigned(pData^.ExportEntry) then begin
-    case self.GetExportTypeIndex(pData^.ExportEntry) of
-      1 : begin
-        if pData^.ExportEntry is TPEExportEntry then
-          if TPEExportEntry(pData^.ExportEntry).Forwarded then
-            AColorA := _COLOR_LIST_BG_ALT;
-      end;
-      else
-        AColorA := _COLOR_LIST_BG_GRAY;
-    end;
-    if pData^.ExportEntry is TPEExportEntry then
-      // TODO
-      if TPEExportEntry(pData^.ExportEntry).Forwarded then
-
+    if pData^.ExportEntry.Kind = ekForwardedFunction then
+      AColorA := _COLOR_LIST_BG_ALT
+    else
+      AColorA := _COLOR_LIST_BG_GRAY;
   end else if FGrouped and (VST.GetNodeLevel(Node) = 0) then begin
     AProgress := CellRect;
 
@@ -745,8 +1017,6 @@ begin
       False
     );
   end;
-
-  CellPaintMode := cpmPaint;
 end;
 
 procedure TFrameList.VSTChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
@@ -797,8 +1067,8 @@ begin
       end;
 
       3 : result := CompareValue(pData1^.ExportEntry.Ordinal, pData2^.ExportEntry.Ordinal);
-      4 : result := CompareText(pData1^.ImagePath, pData2^.ImagePath);
-      5 : result := CompareValue(GetExportTypeIndex(pData1^.ExportEntry), GetExportTypeIndex(pData2^.ExportEntry));
+      4 : result := CompareValue(Integer(pData1^.ExportEntry.Kind), Integer(pData2^.ExportEntry.Kind));
+      5 : result := CompareText(pData1^.ImagePath, pData2^.ImagePath);
     end;
   end else if
     (not Assigned(pData1^.ExportEntry)) and
@@ -837,18 +1107,12 @@ begin
       ikNormal, ikSelected: begin
         case Column of
           0 : begin
-            case self.GetExportTypeIndex(pData^.ExportEntry) of
-              1 : begin
-                if pData^.ExportEntry is TPEExportEntry then
-                  if TPEExportEntry(pData^.ExportEntry).Forwarded then
-                    ImageIndex := _ICON_EXPORT_FORWARDED
-                  else
-                    ImageIndex := _ICON_EXPORT;
-              end;
-
-              2 : ImageIndex := _ICON_COM_METHOD;
-              3 : ImageIndex := _ICON_COM_PROPERTY;
-
+            case pData^.ExportEntry.Kind of
+              ekExportFunction    : ImageIndex := _ICON_EXPORT;
+              ekForwardedFunction : ImageIndex := _ICON_EXPORT_FORWARDED;
+              ekCOMMethod         : ImageIndex := _ICON_COM_METHOD;
+              ekCOMProperty       : ImageIndex := _ICON_COM_PROPERTY;
+              ekCOMUnknown        : ImageIndex := _ICON_COM_UNKNOWN;
               else
                 ImageIndex := _ICON_UNKNOWN_EXPORT;
             end;
@@ -883,7 +1147,12 @@ begin
 
   if Assigned(pData.ExportEntry) then begin
     case Column of
-      0 : CellText := pData^.ExportEntry.DisplayName;
+      0 : begin
+        if pData^.ExportEntry.Anonymous then
+          CellText := Format('Ordinal%d', [pData^.ExportEntry.Ordinal])
+        else
+          CellText := pData^.ExportEntry.DisplayName;
+      end;
 
       1 : begin
         if pData^.ExportEntry is TPEExportEntry then
@@ -904,8 +1173,8 @@ begin
       end;
 
       3 : CellText := IntToStr(pData^.ExportEntry.Ordinal);
-      4 : CellText := pData^.ImagePath;
-      5 : CellText := GetExportTypeName(pData^.ExportEntry);
+      4 : CellText := pData^.ExportEntry.KindAsString;
+      5 : CellText := pData^.ImagePath;
     end;
   end else begin
     case Column of

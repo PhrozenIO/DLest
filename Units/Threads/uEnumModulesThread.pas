@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -39,7 +39,8 @@ type
 
 implementation
 
-uses VirtualTrees, uFormProcessList, Winapi.TlHelp32, uExceptions, uFunctions;
+uses VirtualTrees, uFormProcessList, Winapi.TlHelp32, uExceptions, uFunctions,
+     uConstants, VirtualTrees.Types;
 
 { TEnumModulesThread.Execute }
 procedure TEnumModulesThread.Execute();
@@ -48,8 +49,7 @@ var hSnap             : THandle;
     ATotalModulesSize : UInt64;
 
   procedure AddItem();
-  var AImagePath : String;
-      pNode      : PVirtualNode;
+  var pNode      : PVirtualNode;
       pData      : PModuleTreeData;
   begin
     Synchronize(procedure begin
@@ -57,7 +57,7 @@ var hSnap             : THandle;
       pData := pNode.GetData;
     end);
 
-    pData^.ImagePath  := AModuleEntry.szExePath;
+    pData^.ImagePath  := CleanFileName(AModuleEntry.szExePath);
     pData^.ProcessId  := AModuleEntry.th32ProcessID;
     pData^.ModuleBase := AModuleEntry.modBaseAddr;
     pData^.ModuleSize := AModuleEntry.modBaseSize;
@@ -70,10 +70,7 @@ var hSnap             : THandle;
 begin
   ATotalModulesSize := 0;
   try
-    Synchronize(procedure begin
-      FormProcessList.VSTModules.Clear;
-      FormProcessList.VSTModules.BeginUpdate();
-    end);
+    PostMessage(FormProcessList.Handle, WM_MESSAGE_BEGIN_UPDATE, 0, LPARAM(ulkModules));
     ///
 
     hSnap := CreateToolHelp32Snapshot(TH32CS_SNAPMODULE, FProcessId);
@@ -94,11 +91,9 @@ begin
       AModuleEntry.dwSize := SizeOf(TModuleEntry32);
     until (not Module32Next(hSnap, AModuleEntry));
   finally
-    Synchronize(procedure begin
-      FormProcessList.TotalModulesSize := ATotalModulesSize;
-
-      FormProcessList.VSTModules.EndUpdate();
-    end);
+    // WParam usually takes an handle or an integer
+    // LParam usually takes a pointer
+    PostMessage(FormProcessList.Handle, WM_MESSAGE_END_UPDATE, ATotalModulesSize, LPARAM(ulkModules));
 
     ///
     ExitThread(0);

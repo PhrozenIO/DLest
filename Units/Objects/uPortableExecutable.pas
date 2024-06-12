@@ -9,15 +9,13 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
 {                                                                              }
 {                                                                              }
 {******************************************************************************}
-
-// TODO: Improve the code quality and efficiency
 
 unit uPortableExecutable;
 
@@ -86,13 +84,25 @@ type
     property ImageSectionHeader : TImageSectionHeader read FImageSectionHeader;
   end;
 
+  TExportKind = (
+    ekExportFunction,
+    ekForwardedFunction,
+    ekCOMMethod,
+    ekCOMProperty,
+    ekCOMUnknown
+  );
+
   TExportEntry = class(TPersistent)
   private
-    FName    : String;
-    FOrdinal : Longint;
+    FName      : String;
+    FOrdinal   : Longint;
+    FAnonymous : Boolean;
 
     {@M}
-    function GetDisplayName() : string; virtual;
+    function GetDisplayName() : String; virtual;
+    function GetExportKind() : TExportKind;
+    function GetExportKindAsString() : String;
+    procedure SetDisplayName(const AValue : String);
   public
     {@C}
     constructor Create();
@@ -102,11 +112,14 @@ type
     function ToJson() : ISuperObject; virtual;
 
     {@G/S}
-    property Name    : String  read FName    write FName;
+    property Name    : String  read FName    write SetDisplayName;
     property Ordinal : Longint read FOrdinal write FOrdinal;
 
     {@G}
-    property DisplayName : String read GetDisplayName;
+    property DisplayName  : String      read GetDisplayName;
+    property Kind         : TExportKind read GetExportKind;
+    property KindAsString : String      read GetExportKindAsString;
+    property Anonymous    : Boolean     read FAnonymous;
   end;
 
   TCOMKind = (
@@ -124,7 +137,7 @@ type
     function GetDisplayName() : String; override;
   public
     {@C}
-    constructor Create(const ATypeName : String = ''); overload;
+    constructor Create(const ATypeName : String; const AOrdinal : Longint; const AKind : TCOMKind); overload;
     constructor Create(const AExport : TCOMExportEntry); overload;
 
     {@M}
@@ -132,8 +145,8 @@ type
     function ToJson() : ISuperObject; override;
 
     {@/S}
-    property COMKind  : TCOMKind read FCOMKind  write FCOMKind;
-    property TypeName : String   read FTypeName write FTypeName;
+    property TypeName : String   read FTypeName;
+    property COMKind  : TCOMKind read FCOMKind;
   end;
 
   TPEExportEntry = class(TExportEntry)
@@ -212,10 +225,15 @@ type
     procedure Read(const AOffset : UInt64; pBuffer : Pointer; const ABufferSize : UInt64);
     procedure Parse();
   public
+    {@S}
+    class procedure ComputePECheckSum(const APEFile : String); static;
+    class function ExportKindToString(const AExport : TExportEntry): String; overload; static;
+    class function ExportKindToString(const AKind : TExportKind) : String; overload; static;
+
     {@C}
     constructor CreateFromFile(const AFileName : String; const AScanOptions : TScanOptions = []);
-    constructor CreateFromMemory(const AProcessId : Cardinal; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []); overload;
-    constructor CreateFromMemory(const AProcessHandle : THandle; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []); overload;
+    constructor CreateFromMemory_PID(const AProcessId : Cardinal; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []);
+    constructor CreateFromMemory_HANDLE(const AProcessHandle : THandle; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []);
 
     destructor Destroy(); override;
 
@@ -247,70 +265,6 @@ type
 implementation
 
 uses uExceptions, System.SysUtils, Winapi.ImageHlp;
-
-(* Globals *)
-
-procedure ComputePECheckSum(const APEFile : String);
-var hFile        : THandle;
-    hFileMap     : THandle;
-    pFileMapView : Pointer;
-    AFileSize    : Int64;
-    AHeaderSum   : DWORD;
-    ACheckSum    : DWORD;
-    AOffset      : DWORD;
-begin
-  hFile := CreateFileW(
-      PWideChar(APEFile),
-      GENERIC_READ or GENERIC_WRITE,
-      FILE_SHARE_READ,
-      nil,
-      OPEN_EXISTING,
-      FILE_ATTRIBUTE_NORMAL,
-      0
-  );
-  if hFile = INVALID_HANDLE_VALUE then
-    raise EWindowsException.Create(Format('CreateFileW[%s]', [APEFile]));
-  try
-    if not GetFileSizeEx(hFile, AFileSize) then
-      raise EWindowsException.Create(Format('GetFileSizeEx[%s]', [APEFile]));
-    ///
-
-    hFileMap := CreateFileMapping(hFile, nil, PAGE_READWRITE, 0, AFileSize, nil);
-    if hFileMap = 0 then
-      raise EWindowsException.Create(Format('CreateFileMapping[%s]', [APEFile]));
-    try
-      pFileMapView := MapViewOfFile(hFileMap, FILE_MAP_READ or FILE_MAP_WRITE, 0, 0, AFileSize);
-      if pFileMapView = nil then
-        raise EWindowsException.Create(Format('MapViewOfFile[%s]', [APEFile]));
-      try
-        if CheckSumMappedFile(pFileMapView, AFileSize, @AHeaderSum, @ACheckSum) = nil then
-          raise EWindowsException.Create(Format('CheckSumMappedFile[%s]', [APEFile]));
-        ///
-
-        if (PImageDosHeader(pFileMapView)^.e_magic <> IMAGE_DOS_SIGNATURE) or
-           (PDWORD(NativeUInt(pFileMapView) + PImageDosHeader(pFileMapView)^._lfanew)^ <> IMAGE_NT_SIGNATURE) then
-          raise Exception.Create(Format('"%s" is not a valid PE file.', [APEFile]));
-        ///
-
-        // Hot-Patch Checksum in Optional Header
-        AOffset := PImageDosHeader(pFileMapView)^._lfanew;
-        Inc(AOffset, SizeOf(DWORD)); // NT Signature
-        Inc(AOffset, SizeOf(TImageFileHeader));
-
-        PImageOptionalHeader(Pointer(NativeUInt(pFileMapView) + AOffset))^.CheckSum := ACheckSum;
-      finally
-        FlushViewOfFile(pFileMapView, AFileSize);
-        UnmapViewOfFile(pFileMapView);
-      end;
-    finally
-      CloseHandle(hFileMap);
-    end;
-  finally
-    CloseHandle(hFile);
-  end;
-end;
-
-(* TPortableExecutable Class *)
 
 { TPortableExecutable.Create }
 constructor TPortableExecutable.Create();
@@ -379,12 +333,10 @@ var AOffset              : UInt64;
     ASectionHeader       : TImageSectionHeader;
     ASectionHeaderOffset : UInt64;
     AExport              : TPEExportEntry;
-    AOrdinal             : Word;
-    ANameOffset          : UInt64;
     ALength              : UInt64;
 
   procedure Read(pBuffer : Pointer; const ABufferSize : UInt64; var ASavedOffset : UInt64; const AForwardOffset : Boolean = False); overload;
-  var ABytesRead  : Cardinal;
+  var
       stBytesRead : SIZE_T;
   begin
     self.Read(AOffset, pBuffer, ABufferSize);
@@ -438,12 +390,13 @@ var AOffset              : UInt64;
 
     if ALength > 0 then begin
       GetMem(pBuffer, ALength);
+      try
+        Read(pBuffer, ALength, False);
 
-      Read(pBuffer, ALength, False);
-
-      SetString(result, PAnsiChar(pBuffer), ALength);
-
-      FreeMem(pBuffer, ALength);
+        SetString(result, PAnsiChar(pBuffer), ALength);
+      finally
+        FreeMem(pBuffer, ALength);
+      end;
     end;
   end;
 
@@ -465,6 +418,37 @@ var AOffset              : UInt64;
       end;
 
       pfMemory: result := FBaseOffset + ASectionRVA;
+    end;
+  end;
+
+  procedure RegisterExportBasicInformation(var AExport : TPEExportEntry);
+  begin
+    if not Assigned(AExport) then
+      Exit();
+    ///
+
+    // Read Function REL Address
+    AOffset := SectionRVAToFileOffset(
+                  FImageExportDirectory.AddressOfFunctions +
+                  (AExport.Ordinal * SizeOf(Cardinal))
+    );
+    Read(@AExport.RelativeAddress, SizeOf(Cardinal));
+
+    // Set Function Address
+    AExport.Address := FImageOptionalHeader.ImageBase + AExport.RelativeAddress;
+
+    // Check if Function is forwarded
+    AExport.Forwarded := (AExport.RelativeAddress >= FExportDataDirectory.VirtualAddress) and
+                         (
+                            AExport.RelativeAddress < FExportDataDirectory.VirtualAddress +
+                            FExportDataDirectory.Size
+                         );
+
+
+    if AExport.Forwarded then begin
+      AOffset := SectionRVAToFileOffset(AExport.RelativeAddress);
+
+      AExport.ForwardName := ReadString();
     end;
   end;
 
@@ -561,54 +545,73 @@ begin
       (FImageExportDirectory.NumberOfNames > 0)) and ((FScanOptions = []) or (soExportedFunctions in FScanOptions)) then begin
     FExports.Clear();
 
-    for I := 0 to FImageExportDirectory.NumberOfNames {??? NumberOfFunctions ???} -1 do begin
-      AExport := TPEExportEntry.Create();
+    var AOrdinals := TList<Word>.Create();
+    try
+      //
+      // Enumerate Function Names
+      //
+      for I := 0 to FImageExportDirectory.NumberOfNames -1 do begin
+        AExport := TPEExportEntry.Create();
+        try
+          // Read Function Ordinal
+          AOffset := SectionRVAToFileOffset(FImageExportDirectory.AddressOfNameOrdinals + (I * SizeOf(Word)));
 
-      // Read Function Ordinal
-      AOffset := SectionRVAToFileOffset(FImageExportDirectory.AddressOfNameOrdinals + (I * SizeOf(Word)));
+          Read(@AExport.Ordinal, SizeOf(Word));
 
-      Read(@AOrdinal, SizeOf(Word));
+          AExport.Ordinal := AExport.Ordinal + FImageExportDirectory.Base;
 
-      AExport.Ordinal := AOrdinal + FImageExportDirectory.Base;
+          RegisterExportBasicInformation(AExport);
 
-      // Read Function REL Address
-      AOffset := SectionRVAToFileOffset(
-                    FImageExportDirectory.AddressOfFunctions +
-                    (AOrdinal * SizeOf(Cardinal))
-      );
+          // Read Function Name (If applicable)
+          AOffset := SectionRVAToFileOffset(
+            FImageExportDirectory.AddressOfNames + (I * SizeOf(Cardinal))
+          );
 
-      Read(@AExport.RelativeAddress, SizeOf(Cardinal));
+          var ANameOffset : Cardinal := 0;
 
-      // Set Function Address
-      AExport.Address := FImageOptionalHeader.ImageBase + AExport.RelativeAddress;
+          Read(@ANameOffset, SizeOf(Cardinal), False);
 
-      // Read Function Name (If applicable)
-      AOffset := SectionRVAToFileOffset(
-        FImageExportDirectory.AddressOfNames + (I * SizeOf(Cardinal))
-      );
+          AOffset := SectionRVAToFileOffset(ANameOffset);
 
-      ZeroMemory(@ANameOffset, SizeOf(Cardinal));
+          if AOffset > 0 then
+            AExport.Name := ReadString();
+        finally
+          // Tracking named ordinals is the fasted method.
+          // Traditional method involved scanning for each ordinal in .NumberOfFunctions
+          // if it is also appart of .NumberOfNames array which is very very slow.
+          AOrdinals.Add(AExport.Ordinal);
 
-      Read(@ANameOffset, SizeOf(Cardinal), False);
-
-      AOffset := SectionRVAToFileOffset(ANameOffset);
-
-      if AOffset > 0 then
-        AExport.Name := ReadString();
-
-      // Check if Function is forwarded
-      AExport.Forwarded := (AExport.RelativeAddress >= FExportDataDirectory.VirtualAddress) and
-                           (AExport.RelativeAddress < FExportDataDirectory.VirtualAddress + FExportDataDirectory.Size);
-
-
-      if AExport.Forwarded then begin
-        AOffset := SectionRVAToFileOffset(AExport.RelativeAddress);
-
-        AExport.ForwardName := ReadString();
+          ///
+          FExports.Add(AExport);
+        end;
       end;
 
-      ///
-      FExports.Add(AExport);
+      // ...
+
+      //
+      // Enumerate Lone Ordinals
+      //
+      if FImageExportDirectory.NumberOfFunctions > FImageExportDirectory.NumberOfNames then begin
+        for I := 0 to FImageExportDirectory.NumberOfFunctions -1 do begin
+
+          if AOrdinals.Contains(FImageExportDirectory.Base + I) then
+            continue;
+
+          AExport := TPEExportEntry.Create();
+          try
+            AExport.Ordinal := FImageExportDirectory.Base + I;
+            AExport.Name    := ''; // Anonymous
+
+            ///
+            RegisterExportBasicInformation(AExport);
+          finally
+            FExports.Add(AExport);
+          end;
+        end;
+      end;
+    finally
+      if Assigned(AOrdinals) then
+        FreeAndNil(AOrdinals);
     end;
   end;
 
@@ -642,95 +645,91 @@ var ATypeLib    : ITypeLib;
     AExport     : TCOMExportEntry;
 begin
   try
-    CoInitialize(nil);
-    try
-      // Investigate how we could load COM Type Libraries info directly from memory.
-      // CreatePointerMoniker ?
-      AResult := LoadTypeLib(PWideChar(FFileName), ATypeLib);
+    // Investigate how we could load COM Type Libraries info directly from memory.
+    // CreatePointerMoniker, PE Header ?
+    AResult := LoadTypeLib(PWideChar(FFileName), ATypeLib);
+    if AResult <> S_OK then
+      Exit();
+
+    for I := 0 to ATypeLib.GetTypeInfoCount - 1 do begin
+      AResult := ATypeLib.GetTypeInfo(I, ATypeInfo);
       if AResult <> S_OK then
-        Exit();
+        continue;
 
-      for I := 0 to ATypeLib.GetTypeInfoCount - 1 do begin
-        AResult := ATypeLib.GetTypeInfo(I, ATypeInfo);
-        if AResult <> S_OK then
-          continue;
+      AResult := ATypeInfo.GetTypeAttr(ptrTypeAttr);
+      if AResult <> S_OK then
+        continue;
+      try
+        (*case ptrTypeAttr^.typekind of
+          TKIND_INTERFACE,
+          TKIND_DISPATCH : ;
 
-        AResult := ATypeInfo.GetTypeAttr(ptrTypeAttr);
-        if AResult <> S_OK then
-          continue;
+          else
+            continue;
+        end;*)
+        ///
+
+        ATypeInfo.GetDocumentation(-1, @pTypeName, nil, nil, nil);
         try
-          (*case ptrTypeAttr^.typekind of
-            TKIND_INTERFACE,
-            TKIND_DISPATCH : ;
+          ATypeName := WideString(pTypeName);
+        finally
+          SysFreeString(pTypeName);
+        end;
 
-            else
+
+        if ptrTypeAttr^.cFuncs > 0 then begin
+          for N := 0 to ptrTypeAttr^.cFuncs -1 do begin
+            AResult := ATypeInfo.GetFuncDesc(N, ptrFuncDesc);
+            if AResult <> S_OK then
               continue;
-          end;*)
-          ///
-
-          ATypeInfo.GetDocumentation(-1, @pTypeName, nil, nil, nil);
-          try
-            ATypeName := WideString(pTypeName);
-          finally
-            SysFreeString(pTypeName);
-          end;
-
-
-          if ptrTypeAttr^.cFuncs > 0 then begin
-            for N := 0 to ptrTypeAttr^.cFuncs -1 do begin
-              AResult := ATypeInfo.GetFuncDesc(N, ptrFuncDesc);
+            try
+              AResult := ATypeinfo.GetDocumentation(ptrFuncDesc^.memid, @pFuncName, nil, nil, nil);
               if AResult <> S_OK then
                 continue;
               try
-                AResult := ATypeinfo.GetDocumentation(ptrFuncDesc^.memid, @pFuncName, nil, nil, nil);
-                if AResult <> S_OK then
-                  continue;
-                try
-                  //
-                  AItemName := WideString(pFuncName);
-                finally
-                  SysFreeString(PWideChar(pFuncName));
-                end;
-
-                if ptrFuncDesc.wFuncFlags = FUNCFLAG_FRESTRICTED then
-                  continue;
-
-                AExport := TCOMExportEntry.Create(ATypeName);
-                AExport.Name := AItemName;
-                AExport.Ordinal := ptrFuncDesc^.memid;
-
-                case ptrFuncDesc.invkind of
-                  INVOKE_FUNC:
-                    AExport.COMKind := comkMethod;
-
-                  INVOKE_PROPERTYGET,
-                  INVOKE_PROPERTYPUT,
-                  INVOKE_PROPERTYPUTREF:
-                    AExport.COMKind := comkProperty;
-
-                  else
-                    AExport.COMKind := comUnknown;
-                end;
-
-                if (FScanOptions <> []) and
-                   (((not (soCOMUnknown in FScanOptions)) and (AExport.COMKind = comUnknown)) or
-                   ((not (soCOMMethods in FScanOptions)) and (AExport.COMKind = comkMethod)) or
-                   ((not (soCOMProperties in FScanOptions)) and (AExport.COMKind = comkProperty)))
-                  then continue;
-
-                ///
-                FExports.Add(AExport);
+                //
+                AItemName := WideString(pFuncName);
               finally
-                ATypeInfo.ReleaseFuncDesc(ptrFuncDesc);
+                SysFreeString(PWideChar(pFuncName));
               end;
+
+              if ptrFuncDesc.wFuncFlags = FUNCFLAG_FRESTRICTED then
+                continue;
+
+              var ACOMKind : TCOMKind;
+
+              case ptrFuncDesc.invkind of
+                INVOKE_FUNC:
+                  ACOMKind := comkMethod;
+
+                INVOKE_PROPERTYGET,
+                INVOKE_PROPERTYPUT,
+                INVOKE_PROPERTYPUTREF:
+                  ACOMKind := comkProperty;
+
+                else
+                  ACOMKind := comUnknown;
+              end;
+
+              if (FScanOptions <> []) and
+                 (((not (soCOMUnknown in FScanOptions)) and (ACOMKind = comUnknown)) or
+                 ((not (soCOMMethods in FScanOptions)) and (ACOMKind = comkMethod)) or
+                 ((not (soCOMProperties in FScanOptions)) and (ACOMKind = comkProperty)))
+                then continue;
+
+              ///
+              AExport := TCOMExportEntry.Create(ATypeName, ptrFuncDesc^.memid, ACOMKind);
+              AExport.Name := AItemName;
+
+              FExports.Add(AExport);
+            finally
+              ATypeInfo.ReleaseFuncDesc(ptrFuncDesc);
             end;
           end;
-        finally
-          ATypeInfo.ReleaseTypeAttr(ptrTypeAttr);
         end;
+      finally
+        ATypeInfo.ReleaseTypeAttr(ptrTypeAttr);
       end;
-    finally
-      CoUninitialize();
     end;
   except
   end;
@@ -772,7 +771,7 @@ begin
 end;
 
 { TPortableExecutable.CreateFromMemory }
-constructor TPortableExecutable.CreateFromMemory(const AProcessId : Cardinal; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []);
+constructor TPortableExecutable.CreateFromMemory_PID(const AProcessId : Cardinal; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []);
 var AProcessHandle : THandle;
 begin
   AProcessHandle := OpenProcess(
@@ -784,10 +783,10 @@ begin
     raise EWindowsException.Create('OpenProcess');
   ///
 
-  self.CreateFromMemory(AProcessHandle, ABaseAddress, AScanOptions);
+  self.CreateFromMemory_HANDLE(AProcessHandle, ABaseAddress, AScanOptions);
 end;
 
-constructor TPortableExecutable.CreateFromMemory(const AProcessHandle : THandle; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []);
+constructor TPortableExecutable.CreateFromMemory_HANDLE(const AProcessHandle : THandle; const ABaseAddress : Pointer; const AScanOptions : TScanOptions = []);
 begin
   Create();
   ///
@@ -826,7 +825,6 @@ end;
 { TPortableExecutable.GetHeaderSectionNature }
 function TPortableExecutable.GetHeaderSectionNature(const AOffset : UInt64; var AExtraInfo : String) : TPEHeaderSectionNature;
 var ASection       : TSection;
-    ANextSection   : TSection;
     ASectionSize   : UInt64;
     ASectionOffset : UInt64;
 begin
@@ -1145,16 +1143,18 @@ begin
   inherited Create();
   ///
 
-  FName    := '';
-  FOrdinal := 0;
+  FName      := '';
+  FOrdinal   := 0;
+  FAnonymous := False;
 end;
 
 { TExportEntry.Assign }
 procedure TExportEntry.Assign(ASource : TPersistent);
 begin
   if ASource is TExportEntry then begin
-    FOrdinal := TExportEntry(ASource).Ordinal;
-    FName    := TExportEntry(ASource).Name;
+    FOrdinal   := TExportEntry(ASource).Ordinal;
+    FName      := TExportEntry(ASource).Name;
+    FAnonymous := TExportEntry(ASource).Anonymous;
   end else
     inherited;
 end;
@@ -1175,16 +1175,49 @@ begin
   result := self.Name;
 end;
 
+{ TExportEntry.GetDisplayName }
+function TExportEntry.GetExportKind() : TExportKind;
+begin
+  if self is TPEExportEntry then begin
+    if TPEExportEntry(self).Forwarded then
+      result := ekForwardedFunction
+    else
+      result := ekExportFunction;
+  end else if self is TCOMExportEntry then begin
+    case TCOMExportEntry(self).COMKind of
+      comUnknown   : result := ekCOMUnknown;
+      comkMethod   : result := ekCOMMethod;
+      comkProperty : result := ekCOMProperty;
+    end;
+  end;
+end;
+
+{ TExportEntry.GetExportKindAsString }
+function TExportEntry.GetExportKindAsString() : String;
+begin
+  result := TPortableExecutable.ExportKindToString(GetExportKind());
+end;
+
+{ TExportEntry.SetDisplayName }
+procedure TExportEntry.SetDisplayName(const AValue : String);
+begin
+  FName := AValue;
+
+  ///
+  FAnonymous := FName.IsEmpty;
+end;
+
 (* TCOMExportEntry Class *)
 
 { TCOMExportEntry.Create }
-constructor TCOMExportEntry.Create(const ATypeName : String = '');
+constructor TCOMExportEntry.Create(const ATypeName : String; const AOrdinal : Longint; const AKind : TCOMKind);
 begin
   inherited Create();
   ///
 
-  FCOMKind := comUnknown;
   FTypeName := ATypeName;
+  FOrdinal := AOrdinal;
+  FCOMKind := AKind;
 end;
 
 constructor TCOMExportEntry.Create(const AExport : TCOMExportEntry);
@@ -1279,11 +1312,93 @@ begin
     result.S['forward_name'] := FForwardName;
 end;
 
+class procedure TPortableExecutable.ComputePECheckSum(const APEFile : String);
+var hFile        : THandle;
+    hFileMap     : THandle;
+    pFileMapView : Pointer;
+    AFileSize    : Int64;
+    AHeaderSum   : DWORD;
+    ACheckSum    : DWORD;
+    AOffset      : DWORD;
+begin
+  hFile := CreateFileW(
+      PWideChar(APEFile),
+      GENERIC_READ or GENERIC_WRITE,
+      FILE_SHARE_READ,
+      nil,
+      OPEN_EXISTING,
+      FILE_ATTRIBUTE_NORMAL,
+      0
+  );
+  if hFile = INVALID_HANDLE_VALUE then
+    raise EWindowsException.Create(Format('CreateFileW[%s]', [APEFile]));
+  try
+    if not GetFileSizeEx(hFile, AFileSize) then
+      raise EWindowsException.Create(Format('GetFileSizeEx[%s]', [APEFile]));
+    ///
+
+    hFileMap := CreateFileMapping(hFile, nil, PAGE_READWRITE, 0, AFileSize, nil);
+    if hFileMap = 0 then
+      raise EWindowsException.Create(Format('CreateFileMapping[%s]', [APEFile]));
+    try
+      pFileMapView := MapViewOfFile(hFileMap, FILE_MAP_READ or FILE_MAP_WRITE, 0, 0, AFileSize);
+      if pFileMapView = nil then
+        raise EWindowsException.Create(Format('MapViewOfFile[%s]', [APEFile]));
+      try
+        if CheckSumMappedFile(pFileMapView, AFileSize, @AHeaderSum, @ACheckSum) = nil then
+          raise EWindowsException.Create(Format('CheckSumMappedFile[%s]', [APEFile]));
+        ///
+
+        if (PImageDosHeader(pFileMapView)^.e_magic <> IMAGE_DOS_SIGNATURE) or
+           (PDWORD(NativeUInt(pFileMapView) + PImageDosHeader(pFileMapView)^._lfanew)^ <> IMAGE_NT_SIGNATURE) then
+          raise Exception.Create(Format('"%s" is not a valid PE file.', [APEFile]));
+        ///
+
+        // Hot-Patch Checksum in Optional Header
+        AOffset := PImageDosHeader(pFileMapView)^._lfanew;
+        Inc(AOffset, SizeOf(DWORD)); // NT Signature
+        Inc(AOffset, SizeOf(TImageFileHeader));
+
+        PImageOptionalHeader(Pointer(NativeUInt(pFileMapView) + AOffset))^.CheckSum := ACheckSum;
+      finally
+        FlushViewOfFile(pFileMapView, AFileSize);
+        UnmapViewOfFile(pFileMapView);
+      end;
+    finally
+      CloseHandle(hFileMap);
+    end;
+  finally
+    CloseHandle(hFile);
+  end;
+end;
+
+class function TPortableExecutable.ExportKindToString(const AKind : TExportKind) : String;
+begin
+  case AKind of
+    ekExportFunction    : result := 'Exported Function';
+    ekForwardedFunction : result := 'Forwarded Function';
+    ekCOMMethod         : result := 'COM Method';
+    ekCOMProperty       : result := 'COM Property';
+    ekCOMUnknown        : result := 'COM Unknown';
+    else
+      result := 'Unknown';
+  end;
+end;
+
+class function TPortableExecutable.ExportKindToString(const AExport : TExportEntry) : String;
+begin
+  result := ExportKindToString(AExport.Kind);
+end;
+
 initialization
+  CoInitialize(nil);
+
   Wow64RevertWow64FsRedirection  := GetProcAddress(GetModuleHandle('Kernel32.dll'), 'Wow64RevertWow64FsRedirection');
   Wow64DisableWow64FsRedirection := GetProcAddress(GetModuleHandle('Kernel32.dll'), 'Wow64DisableWow64FsRedirection');
 
 finalization
+  CoUninitialize();
+
   Wow64RevertWow64FsRedirection  := nil;
   Wow64DisableWow64FsRedirection := nil;
 

@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -24,7 +24,8 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes,
   Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, VirtualTrees, uWorkerThread,
-  System.SyncObjs, System.Generics.Collections;
+  System.SyncObjs, System.Generics.Collections, VirtualTrees.BaseAncestorVCL,
+  VirtualTrees.BaseTree, VirtualTrees.AncestorVCL, VirtualTrees.Types;
 
 type
   TTreeData = record
@@ -71,10 +72,11 @@ type
       CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect);
     procedure VSTCompareNodes(Sender: TBaseVirtualTree; Node1,
       Node2: PVirtualNode; Column: TColumnIndex; var Result: Integer);
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
   private
     FThreadWatcher : TThreadWatcher;
     FWorkers       : TThreadList<TWorkerThread>;
-
+  protected
     {@M}
     procedure CreateParams(var Params: TCreateParams); override;
   public
@@ -252,6 +254,14 @@ begin
 
   ///
   inherited Destroy();
+end;
+
+procedure TFormThreadManager.FormKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  case Key of
+    27 : self.Close();
+  end;
 end;
 
 procedure TFormThreadManager.AddWorker(const AThread : TWorkerThread);

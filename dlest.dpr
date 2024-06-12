@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -47,7 +47,12 @@ uses
   uVirtualStringTreeUtils in 'Units\uVirtualStringTreeUtils.pas',
   uFormExtendedLibrariesInformation in 'Units\Forms\uFormExtendedLibrariesInformation.pas' {FormExtendedLibrariesInformation},
   Vcl.Themes,
-  Vcl.Styles;
+  Vcl.Styles,
+  uFormProcessMonitor in 'Units\Forms\uFormProcessMonitor.pas' {FormProcessMonitor},
+  uFormProcessMonitorOptions in 'Units\Forms\uFormProcessMonitorOptions.pas' {FormProcessMonitorOptions},
+  uDebuggerThread in 'Units\Threads\uDebuggerThread.pas',
+  uDebugProcessHelper in 'Units\uDebugProcessHelper.pas',
+  uFormHashMe in 'Units\Forms\uFormHashMe.pas' {FormHashMe};
 
 {$R *.res}
 
@@ -65,5 +70,8 @@ begin
   Application.CreateForm(TFormScanFolder, FormScanFolder);
   Application.CreateForm(TFormLogs, FormLogs);
   Application.CreateForm(TFormAbout, FormAbout);
+  Application.CreateForm(TFormProcessMonitor, FormProcessMonitor);
+  Application.CreateForm(TFormProcessMonitorOptions, FormProcessMonitorOptions);
+  Application.CreateForm(TFormHashMe, FormHashMe);
   Application.Run;
 end.

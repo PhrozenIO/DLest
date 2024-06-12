@@ -11,7 +11,9 @@ object FormThreadManager: TFormThreadManager
   Font.Height = -12
   Font.Name = 'Segoe UI'
   Font.Style = []
+  KeyPreview = True
   Position = poMainFormCenter
+  OnKeyDown = FormKeyDown
   TextHeight = 15
   object VST: TVirtualStringTree
     AlignWithMargins = True
@@ -42,6 +44,7 @@ object FormThreadManager: TFormThreadManager
     Colors.UnfocusedColor = clGray
     Colors.UnfocusedSelectionColor = clWhite
     Colors.UnfocusedSelectionBorderColor = clWhite
+    DefaultNodeHeight = 19
     Header.AutoSizeIndex = 2
     Header.Options = [hoAutoResize, hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible, hoHeaderClickAutoSort]
     Images = FormMain.VirtualImageList
@@ -73,7 +76,7 @@ object FormThreadManager: TFormThreadManager
       item
         Position = 2
         Text = 'Class'
-        Width = 355
+        Width = 369
       end
       item
         Position = 3

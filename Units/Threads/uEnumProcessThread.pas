@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -37,7 +37,8 @@ type
 
 implementation
 
-uses VirtualTrees, uFormProcessList, Winapi.TlHelp32, uExceptions, uFunctions;
+uses VirtualTrees, uFormProcessList, Winapi.TlHelp32, uExceptions, uFunctions,
+     uConstants, VirtualTrees.Types;
 
 { TEnumProcessThread.Execute }
 procedure TEnumProcessThread.Execute();
@@ -71,18 +72,14 @@ var hSnap         : THandle;
       pData := pNode.GetData;
     end);
 
-    pData^.ImagePath  := AImagePath;
+    pData^.ImagePath  := CleanFileName(AImagePath);
     pData^.ProcessId  := AProcessEntry.th32ProcessID;
     pData^.ImageIndex := SystemFileIcon(AImagePath);
   end;
 
 begin
   try
-    Synchronize(procedure begin
-      FormProcessList.Reset();
-
-      FormProcessList.VSTProcess.BeginUpdate();
-    end);
+    PostMessage(FormProcessList.Handle, WM_MESSAGE_BEGIN_UPDATE, 0, LPARAM(ulkProcess));
     ///
 
     hSnap := CreateToolHelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -103,9 +100,7 @@ begin
       AProcessEntry.dwSize := SizeOf(TProcessEntry32);
     until (not Process32Next(hSnap, AProcessEntry));
   finally
-    Synchronize(procedure begin
-      FormProcessList.VSTProcess.EndUpdate();
-    end);
+    PostMessage(FormProcessList.Handle, WM_MESSAGE_END_UPDATE, 0, LPARAM(ulkProcess));
 
     ///
     ExitThread(0);

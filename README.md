@@ -1,55 +1,43 @@
 # DLest
 
-![banner](Assets/banner.png)
+![Main](Assets/main.png)
 
-Welcome to DLest, the Portable Executable Exported Functions Manager. This powerful Microsoft Windows application is specifically designed to assist developers and malware analysts with the analysis and manipulation of exported functions in Portable Executable (PE) files, particularly DLLs. With DLest, you can easily enumerate exported functions using a variety of methods, including drag and drop, opening a folder, or recursively scanning a folder with regular expression filtering to only include PE files with specific export function names.
+DLest is specifically designed to assist developers and malware analysts with the analysis and manipulation of exported functions in Portable Executable (PE) files, particularly DLLs. With DLest, you can easily enumerate exported functions using a variety of methods, including drag and drop, opening a folder, or recursively scanning a folder with regular expression filtering to only include PE files with specific export function names.
 
 In addition to parsing PE files stored on disk, DLest also supports the analysis of memory-loaded modules, allowing you to analyze and manipulate exported functions in real time. This makes DLest an invaluable tool for malware analysts during reverse engineering or incident response. You can even dump a reconstructed version of any module for further analysis or reuse.
 
 This application is fully multithreaded, ensuring efficient and fast processing of even large numbers of PE files. Whether you're a developer looking to analyze and manipulate exported functions or a malware analyst in need of a reliable tool to assist with your work, DLest is sure to be a valuable addition to your toolkit. Its name, DLest, reflects its ability to "deleste" you from fastidious work, streamlining and simplifying your tasks.
 
-> This will be my last huge project for 2022 and the entire 2023 year. In 2023, I will be focused on obtaining various offensive security certifications and working on a new version of the Unprotect Project with my friend Thomas Roccia. However, this does not mean that this project or other projects will be unmaintained. I will still be available to offer bug fixes as needed.
-
 ---
+
+![Key Features](Assets/key_features.png)
 
 # Highlighted Features
 
 - Supports both x86-32 (PE) and x86-64 (PE+) bit Portable Executable Files.
+- Support Named / Unnamed Exports.
+- Support COM Properties and Methods Enumeration.
+- Advanced Filtering (By export name, export kind).
 - Load PE File(s) from Drag n Drop (Support UAC).
 - Load PE File(s) from open dialog.
 - Load PE File(s) from entire folder.
-- Scan for PE File(s) with advanced controls (deep scan, recursivity and export function filtering via regex).
+- Scan for PE File(s) with advanced controls (recursivity and export function filtering via text/regex).
 - Scan and parse memory mapped modules from running process.
+- Debug process and catch DLL Load events (Optionally step by step user-control)
+- Integrated File Hash Tool (MD5, SHA1, SHA2 Families)
 - Google Search.
+- Unprotect Search.
 - Multi Tabs.
+
+And more!
 
 ---
 
-# Open File Modes.
-
-## Open Dialog
-
-![](Assets/mode-opend.png)
-
-The open file mode in DLest allows you to use the default Microsoft Windows open dialog to select one or more Portable Executable (PE) files to be loaded into the tool. When you select the open file mode, a standard open dialog window will appear, allowing you to browse your computer and select the PE files you want to load.
-
-Once you have selected the desired files, they will be passed through a filtering process to ensure that they are valid PE files of the same architecture as the current DLest program. This process helps to ensure that only compatible files are loaded into the tool, reducing the risk of errors or issues during processing.
-
-Using the open file mode, you can easily load and analyze individual PE files as needed, whether for development or malware analysis purposes. Whether you need to examine a single file or a large batch of files, the open file mode in DLest makes it easy to get started.
-
-## Open Folder
-
-![](Assets/mode-openfolder.png)
-
-The open folder mode in DLest allows you to quickly scan a single folder and identify all of the valid Portable Executable (PE) files, particularly DLLs, within it. To use this mode, simply select the open folder option and browse to the desired folder using the standard Microsoft Windows folder selection dialog.
-
-Once you have selected the folder, DLest will scan it and identify all of the valid DLL files within it using the same filtering process as the open file mode. This process helps to ensure that only compatible files are included in the scan, reducing the risk of errors or issues during processing.
-
-The open folder mode is a fast and efficient way to scan a single directory and identify all of the DLL files within it.
+# Key Features
 
 ## Scan Folder
 
-![](Assets/mode-scan.png)
+![](Assets/scan_folder.png)
 
 The scan folder mode in DLest allows you to perform a more advanced and comprehensive scan of a folder or directory structure, locating any valid DLL files that offer exported functions. This mode allows you to recursively scan a folder and its subfolders, looking for compatible and valid PE files that offer exported functions.
 
@@ -61,9 +49,7 @@ Whether you need to quickly locate exported functions in a single folder or perf
 
 ## In-Memory Modules
 
-![](Assets/mode-mem.png)
-
-![](Assets/mode-mem-ex.png)
+![Mapped Modules Enumeration](Assets/scan_modules.png)
 
 The load from running process mode in DLest allows you to parse the Portable Executable (PE) header for exported functions directly from in-memory modules, rather than from files stored on disk. This can be a useful feature for developers and malware analysts who need to analyze exported functions in real time or who are working with memory-loaded modules that are not stored on disk.
 
@@ -81,7 +67,7 @@ The reconstructed PE image can be saved to a file on your system for later use. 
 
 # Exported Function Filtering
 
-![](Assets/export-filtering.png)
+![Regex Filtering Export Names](Assets/filtering_regex.png)
 
 The live exports filtering feature in DLest allows you to use regular expressions to filter the exported functions displayed in the tool in real time. This can be a useful feature for developers and malware analysts who need to quickly locate specific exported functions or who want to exclude certain functions from the list.
 
@@ -89,19 +75,13 @@ To use this feature, simply enter a regular expression into the designated field
 
 While this feature can be very useful, it is worth noting that it may be slower when applied to a very large number of exported functions. In such cases, it may take longer for DLest to apply the filter and update the display. However, in most cases, the live exports filtering feature is fast and efficient, making it a valuable tool for quickly locating specific exported functions or excluding unwanted ones.
 
-# Logs
+![Filtering By Type](Assets/filtering_bytype.png)
 
-![](Assets/logs.png)
-
-The log window in DLest is a feature that displays information about any errors or issues that occur while parsing Portable Executable (PE) files or when a target file does not contain exported functions. This can be a useful feature for developers and malware analysts who need to understand why certain files are not being processed correctly or who want to troubleshoot issues with the tool.
-
-Any time an error or issue occurs while parsing a PE file or when a target file does not contain exported functions, the relevant information will be logged in the log window. This can include details about the file in question, the nature of the error or issue, and any relevant stack trace or other diagnostic information.
-
-By using the log window, you can quickly identify and troubleshoot any problems that may arise while using DLest. Whether you are a developer working to improve the tool or a malware analyst trying to understand the behavior of a malicious program, the log window can be a valuable resource for tracking down and resolving issues.
+Starting with version 3 of DLest, you can now filter enumerated exports by their type: Export Function, Forwarded Function, COM Method, COM Property, and more.
 
 # Extended Libraries Informations
 
-![](Assets/ex-lib-infos.png)
+![](Assets/extlibinfo.png)
 
 The extended libraries information window in DLest is a feature that displays a list of parsed Portable Executable (PE) files from the current tab context, along with a variety of details about each file. This can be a useful feature for developers and malware analysts who need to quickly access information about the libraries they are working with.
 
@@ -113,35 +93,27 @@ Exports count: The total number of exported functions in the library.
 
 File size: The size of the file, in bytes.
 
-File hashes: The MD5, SHA1, and SHA256 hashes of the file, which can be used to verify its integrity or to identify it in a database of known files.
-
 File attributes: A list of attributes associated with the file, such as whether it is read-only or hidden.
 
 By using the extended libraries information window, you can quickly access a wealth of information about the libraries you are working with, making it easier to understand their contents and behavior. Whether you are a developer looking to optimize the performance of your code or a malware analyst trying to understand the behavior of a malicious program, the extended libraries information window is a valuable resource to have at your disposal.
 
-# FAQ
+# Process Spy (Debug)
 
-## Not all process are shown in process list ?
+![Proc Spy Settings](Assets/procspy_settings.png)
 
-There are a few reasons why not all processes may be displayed in the process list in DLest. One of the main reasons is that the process must be of the same architecture as the current DLest process. This means that if DLest is running as a 32-bit process, it will only be able to display and analyze other 32-bit processes. Similarly, if DLest is running as a 64-bit process, it will only be able to display and analyze other 64-bit processes.
+Process Spy is a dynamic analysis feature that allows you to create a new process in debug mode from a targeted application and listen for DLL Load debug events to capture loaded modules step by step, controlled by the user. If you prefer not to go step by step, you can click the play button to let all events proceed automatically. You decide when to stop the debugging to enumerate exported functions from the captured library image files.
 
-Another reason why not all processes may be displayed in the process list is if DLest is currently running with limited privileges. In such cases, DLest may not be able to see or access processes that are running with higher privileges, such as those launched with User Account Control (UAC) on Windows systems. This is a security measure designed to prevent unauthorized access to sensitive processes and data.
+Using the step-by-step method (via the continue button) is recommended for processes that might exit after completing their tasks.
 
-Overall, the process list in DLest is intended to display only those processes that are compatible with the tool and that the current user has the necessary privileges to access. By limiting the process list in this way, DLest helps to ensure the security and stability of the system while still providing users with the ability to analyze and manipulate processes as needed.
+This feature is a valuable alternative to Process Modules Enumeration because some modules might appear temporarily and then disappear. Using this feature, you can trace which DLLs are loaded in real-time.
 
-## New tab is blank after loading new files ?
+![Proc Spy Capture](Assets/procspy_capture.png)
 
-If a new tab context in DLest is blank, it could mean a few different things. One possibility is that no exported functions were found in the selection of files that you are trying to analyze. This could be due to a variety of factors, such as the files being corrupted, not being valid Portable Executable (PE) files, or simply not containing any exported functions.
+# File Hash Tool
 
-Another possibility is that the selection of files you are trying to analyze is not compatible with DLest. For example, if the files are not PE files or are from a different architecture than the current DLest process, they may not be able to be parsed and analyzed by the tool.
+![File Hash Tool](Assets/hashtool.png)
 
-# What Next ?
-
-In future versions of DLest, it is expected to support integration with OpenAI in order to improve the analysis and understanding of extracted information from files. This could include the use of machine learning algorithms to analyze the contents of libraries and specific API's, with the goal of better understanding their expected behavior and purpose.
-
-Additionally, future versions of DLest are expected to include an "Unprotect" API, which will allow users to expose potentially malicious libraries or API's that may be hidden or disguised in order to evade detection. This could be a valuable tool for developers and malware analysts who are working to identify and mitigate the risks posed by malicious software.
-
-Overall, the inclusion of OpenAI integration and the "Unprotect" API in future versions of DLest is expected to significantly enhance the tool's capabilities and make it an even more powerful and useful resource for developers and malware analysts.
+Starting with version 3.0 of DLest, file hashes are now calculated on demand by the user using the File Hash Tool. This tool allows you to send any libraries (from the export list, process list, modules list, Process Spy capture event list, etc.) to the hash list and calculate file hashes for MD5, SHA-1, and the SHA-2 family. It also highlights potential duplicate files by hash comparison. Note that you can also use this tool as a standalone feature; it supports opening any file or dragging and dropping files from your desktop.
 
 # Changelog
 
@@ -156,6 +128,25 @@ Overall, the inclusion of OpenAI integration and the "Unprotect" API in future v
 - Few application icons updated for more confort.
 - Virtual TreeView component updated to version 7.6.4.
 - Compiled with Delphi 11.3.
+
+## Jun 2024
+
+- Compiled with Delphi 12 Version 29.0.51961.7529
+- Virtual TreeView Component updated to Version 8.0.3
+- Improved design, icons, and structure
+- Unprotect Search integrated (Module / API Name)
+- Cancel folder scan now works as expected
+- It is now possible to cancel the export list enumeration task
+- To considerably improve speed, library hashing (MD5, SHA1, SHA2) has been removed from the export enumeration task
+- Better thread synchronization/queue practices implemented to limit overhead and increase speed
+- A new live filter mechanism has been added to enable filtering of exports by their type. This filter works in conjunction with the export search input, allowing for seamless filtering without requiring a refresh.
+- Export statistics displayed to new status bar
+- Folder Search "Deep Scan" was replaced by user-defined wildcard file filter.
+- Extended Library Information feature now offer by default to display libraries as a tree
+- Anonymous exported function / forwarded function are now enumerated (Lone ordinals)
+- Process Spy Feature : Debug a process and monitor for DLL Load signals for export enumeration.
+- File Hash Calculation Tool Feature added.
+- Other code quality improvements
 
 # Special Thanks
 

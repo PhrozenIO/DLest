@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -25,9 +25,10 @@ uses System.Classes,
      System.SysUtils,
      Winapi.Windows,
      VCL.Controls,
-     Winapi.PsAPI,
      Winapi.ShellAPI,
+     Winapi.TlHelp32,
      Winapi.ShlObj,
+     Winapi.PsAPI,
      uWorkerThread;
 
 type
@@ -58,17 +59,25 @@ type
   end;
   PLandCodepage = ^TLandCodepage;
 
+  TPEBasicInformation = record
+    Valid      : Boolean;
+    Is64Image  : Boolean;
+    IsRunnable : Boolean;
+  end;
+
 function GetWindowsDirectory() : string;
+function GetSystemDirectory() : string;
 procedure InitializeSystemIcons(var AImages : TImageList; var AFileInfo : TSHFileInfo; ALargeIcon : Boolean = False);
 function SystemFileIcon(const AFileName : string; AExtensionMode : Boolean = False) : Integer;
+function SystemFolderIcon(APath : String = '') : Integer;
 function IsProcessRunningSameArchitecture(const AProcessId : Cardinal) : Boolean;
 function IsProcessElevated(const hProcess : THandle) : Boolean;
 function IsProcessElevatedById(const AProcessId : Cardinal) : Boolean;
 function IsCurrentProcessElevated() : Boolean;
 function GetImagePathFromProcessId(const AProcessID : Cardinal) : String;
 function FormatSize(const ASize : Int64) : string;
-function DELF_GetModuleFileNameEx(const AProcessId : Cardinal; const hModule : THandle) : String; overload;
-function DELF_GetModuleFileNameEx(const hProcess, hModule : THandle) : String; overload;
+function GetModuleFileNameEx_FromPID(const AProcessId : Cardinal; const hModule : THandle) : String; overload;
+function GetModuleFileNameEx_FromHandle(const hProcess : THandle; const hModule : THandle) : String; overload;
 procedure EnumFilesInDirectory(var AFiles : TStringList; ADirectory : String; const AWildCard : String = '*.*'; const ARecursive : Boolean = False; const AThread : TWorkerThread = nil);
 function FastPECheck(const AFilePath : String) : Boolean;
 procedure Open(const AOpenCommand : String);
@@ -78,20 +87,234 @@ procedure NTSetPrivilege(const APrivilegeName: string; const AEnabled: Boolean);
 function GetElevationLabel() : String;
 function RunAs(const AFileName : String; const AArgument : String = ''): Boolean;
 function BufferToHexView(ABuffer : PVOID; ABufferSize : Int64; pLastOffset : PNativeUINT = nil; AStartOffset : NativeUINT = 0) : String;
-function Ternary(const ACondition : Boolean; const APositiveResult, ANegativeResult : String) : String;
+function Ternary(const ACondition : Boolean; const APositiveResult, ANegativeResult : String) : String; overload;
+function Ternary(const ACondition : Boolean; const APositiveResult, ANegativeResult : Integer) : Integer; overload;
 procedure GoogleSearch(const ASearchQuery : String);
+procedure UnprotectSearch(const ASearchQuery : String);
 function GetFileSize(const AFileName : String) : UInt64;
 function GetApplicationCompany(const AFileName : String) : String;
 function GetApplicationVersion(const AFileName : String) : String;
+function GetDirectoryList(APath : String) : TStringList;
+function GetBasicPEInformation(const AFilePath : String) : TPEBasicInformation;
+function SearchPath_DELF(const AFilePath : String) : String;
+function GetShortcutTarget(const AShortcut: String): String;
+function RemoveDuplicates(var AStringList : TStringList; const AIgnoreCase : Boolean = True) : Cardinal;
+function CleanFileName(const AFileName : String) : String;
 
 const PROCESS_QUERY_LIMITED_INFORMATION = $1000;
       MSGFLT_ALLOW                      = 1;
 
 var ChangeWindowMessageFilterEx : function(hwnd : THandle; message : UINT; action : DWORD; pChangeFilterStruct : Pointer) : BOOL; stdcall = nil;
 
+function SearchPathW(
+    lpPath,
+    lpFileName,
+    lpExtension: LPCWSTR;
+    nBufferLength: DWORD;
+    lpBuffer: LPWSTR;
+    lpFilePart: LPWSTR
+): DWORD; stdcall; external 'Kernel32.dll';
+
 implementation
 
-uses System.Math, System.IOUtils, uExceptions, System.Masks, System.Net.URLClient;
+uses System.Math, System.IOUtils, uExceptions, System.Masks, System.Net.URLClient,
+     System.RegularExpressions, System.Win.ComObj, Winapi.ActiveX;
+
+{ _.CleanFileName }
+function CleanFileName(const AFileName : String) : String;
+begin
+  result := AFileName;
+  ///
+
+  if result.StartsWith('\\?\') then
+    result := result.Remove(0, 4);
+
+  {TODO -oDarkCoderSc -cGeneral : Support other possible issues in file names}
+end;
+
+{ _.RemoveDuplicates }
+function RemoveDuplicates(var AStringList : TStringList; const AIgnoreCase : Boolean = True) : Cardinal;
+var AIndex : Cardinal;
+begin
+  result := 0;
+  ///
+
+  if not Assigned(AStringList) then
+    Exit();
+  ///
+
+  result := AStringList.Count;
+
+  AStringList.Sorted := True;
+  AStringList.CaseSensitive := not AIgnoreCase;
+
+  AIndex := 0;
+  while AIndex < (AStringList.Count -1) do begin
+    if String.Compare(AStringList[AIndex], AStringList[AIndex + 1], AIgnoreCase) = 0 then
+      AStringList.Delete(AIndex)
+    else
+      Inc(AIndex);
+  end;
+
+  ///
+  Dec(result, AStringList.Count);
+end;
+
+{ _.GetShortcutTarget }
+function GetShortcutTarget(const AShortcut: String): String;
+var AShellLink   : IShellLink;
+    APersistFile : IPersistFile;
+    AFindData    : TWin32FindData;
+begin
+  result := AShortcut;
+  ///
+
+  if not AShortcut.EndsWith('.LNK', True) then
+    Exit();
+  ///
+
+  CoInitialize(nil);
+  try
+    AShellLink := CreateComObject(CLSID_ShellLink) as IShellLink;
+    if not Assigned(AShellLink) then
+      Exit();
+    ///
+
+    APersistFile := AShellLink as IPersistFile;
+
+    APersistFile.Load(PWideChar(AShortcut), STGM_READ);
+
+    AShellLink.Resolve(0, SLR_ANY_MATCH or SLR_NO_UI);
+
+    SetLength(Result, MAX_PATH);
+
+    AShellLink.GetPath(PWideChar(Result), MAX_PATH, AFindData, SLGP_UNCPRIORITY);
+
+    Result := PWideChar(Result);
+  finally
+    CoUninitialize();
+  end;
+end;
+
+{ _.GetBasicPEInformation }
+function GetBasicPEInformation(const AFilePath : String) : TPEBasicInformation;
+var hFile                   : THandle;
+    AImageDosHeader         : TImageDosHeader;
+    dwBytesRead             : DWORD;
+    AImageFileHeader        : TImageFileHeader;
+    AImageNtHeaderSignature : DWORD;
+begin
+  ZeroMemory(@result, SizeOf(TPEBasicInformation));
+  ///
+
+  hFile := CreateFileW(
+                        PWideChar(AFilePath),
+                        GENERIC_READ,
+                        FILE_SHARE_READ,
+                        nil,
+                        OPEN_EXISTING,
+                        0,
+                        0
+  );
+  if hFile = INVALID_HANDLE_VALUE then
+    raise EWindowsException.Create('CreateFile');
+
+  try
+    SetFilePointer(hFile, 0, nil, FILE_BEGIN);
+
+    // Read the Image Dos Header
+    if NOT ReadFile(
+                      hFile,
+                      AImageDosHeader,
+                      SizeOf(TImageDosHeader),
+                      dwBytesRead,
+                      nil
+    ) then
+      raise EWindowsException.Create('ReadFile');
+
+    // To be considered as a valid PE file, e_magic must be $5A4D (MZ)
+    if (AImageDosHeader.e_magic <> IMAGE_DOS_SIGNATURE) then
+      raise EPortableExecutableException.Create(peekInvalidDosHeader);
+
+    // Move the cursor to Image NT Signature
+    SetFilePointer(hFile, AImageDosHeader._lfanew, nil, FILE_BEGIN);
+
+    // Read the Image NT Signature
+    if NOT ReadFile(
+                      hFile,
+                      AImageNtHeaderSignature,
+                      SizeOf(DWORD),
+                      dwBytesRead,
+                      nil
+    ) then
+      raise EWindowsException.Create('ReadFile');
+
+    // To be considered as a valid PE file, Image NT Signature must be $00004550 (PE00)
+    if (AImageNtHeaderSignature <> IMAGE_NT_SIGNATURE) then
+      raise EPortableExecutableException.Create(peekInvalidSignature);
+
+    // Read the Image File Header
+    if NOT ReadFile(
+                      hFile,
+                      AImageFileHeader,
+                      sizeOf(TImageFileHeader),
+                      dwBytesRead,
+                      0
+    ) then
+      raise EWindowsException.Create('ReadFile');
+
+    result.IsRunnable := ((AImageFileHeader.Characteristics and IMAGE_FILE_EXECUTABLE_IMAGE) = IMAGE_FILE_EXECUTABLE_IMAGE) and
+                          ((AImageFileHeader.Characteristics and IMAGE_FILE_DLL) <> IMAGE_FILE_DLL);
+
+    result.Is64Image := (AImageFileHeader.Machine = IMAGE_FILE_MACHINE_AMD64);
+
+    ///
+    result.Valid := True;
+  finally
+    CloseHandle(hFile);
+  end;
+end;
+
+{ _.SearchPath_DELF }
+function SearchPath_DELF(const AFilePath : String) : String;
+var ABufferLen : Cardinal;
+begin
+  result := AFilePath;
+  ///
+
+  if FileExists(AFilePath) then
+    Exit();
+
+
+  ABufferLen := SearchPathW(nil, PWideChar(AFilePath), nil, 0, nil, nil);
+  if ABufferLen = 0 then
+    raise EWindowsException.Create('SearchPathW');
+  ///
+
+  SetLength(result, ABufferLen);
+
+  if SearchPathW(nil, PWideChar(AFilePath), nil, ABufferLen, PWideChar(result), nil) = 0 then
+    raise EWindowsException.Create('SearchPathW');
+end;
+
+{ _.GetDirectoryList }
+function GetDirectoryList(APath : String) : TStringList;
+begin
+  result := TStringList.Create();
+  ///
+
+  APath := StringReplace(APath, '/', '\', [rfReplaceAll]);
+
+  APath := TRegEx.Replace(APath, '\\{2,}', '\');
+
+  APath := ExcludeTrailingPathDelimiter(APath);
+
+  result.Delimiter := '\';
+
+  result.StrictDelimiter := True;
+
+  result.DelimitedText := APath;
+end;
 
 { _.GetApplicationExif }
 function GetApplicationExif(const AFileName : String; var AExifData : TApplicationExif) : Boolean;
@@ -292,12 +515,26 @@ begin
   ShellExecuteEx(@AShellExecInfo);
 end;
 
+{ _.GET_WebSearch }
+procedure GET_WebSearch(const ASearchUrl, ASearchParameter, ASearchQuery : String);
+begin
+  Open(Format('%s?%s=%s', [
+    ASearchUrl,
+    ASearchParameter,
+    TURI.URLEncode(ASearchQuery, True)
+  ]));
+end;
+
 { _.GoogleSearch }
 procedure GoogleSearch(const ASearchQuery : String);
 begin
-  Open(Format('https://www.google.com/search?q=%s', [
-    TURI.URLEncode(ASearchQuery, True)
-  ]));
+  GET_WebSearch('https://www.google.com/search', 'q', ASearchQuery);
+end;
+
+{ _.UnprotectSearch }
+procedure UnprotectSearch(const ASearchQuery : String);
+begin
+  GET_WebSearch('https://unprotect.it/portal/', 'keyword', ASearchQuery);
 end;
 
 { _.Open }
@@ -317,6 +554,22 @@ begin
   SetLength(result, ALen);
   if ALen > MAX_PATH then
     WinAPI.Windows.GetWindowsDirectory(@result[1], ALen);
+
+  ///
+  result := IncludeTrailingPathDelimiter(result);
+end;
+
+{ _.GetSystem32Directory }
+function GetSystemDirectory() : string;
+var ALen  : Cardinal;
+begin
+  SetLength(result, MAX_PATH);
+
+  ALen := WinAPI.Windows.GetSystemDirectoryW(@result[1], MAX_PATH);
+
+  SetLength(result, ALen);
+  if ALen > MAX_PATH then
+    WinAPI.Windows.GetSystemDirectoryW(@result[1], ALen);
 
   ///
   result := IncludeTrailingPathDelimiter(result);
@@ -362,14 +615,29 @@ begin
   Result := AFileInfo.iIcon;
 end;
 
+{ _.SystemFolderIcon }
+function SystemFolderIcon(APath : String = '') : Integer;
+var AFileInfo : TSHFileInfo;
+    AFlags    : Integer;
+begin
+  ZeroMemory(@AFileInfo, sizeof(AFileInfo));
+  ///
+
+  if APath = '' then
+    APath := GetWindowsDirectory();
+
+  AFlags := SHGFI_SYSICONINDEX;
+
+  SHGetFileInfo(PChar(APath), 0, AFileInfo, SizeOf(AFileInfo), AFlags);
+
+  Result := AFileInfo.iIcon;
+end;
+
 { _.GetProcessArchitecture }
 function GetProcessArchitecture(const AProcessId : Cardinal) : TArchitecture;
 var hProcess : THandle;
     AWow64Process : bool;
 begin
-  result := archUnknown;
-  ///
-
   if (TOSVersion.Architecture = arIntelX86) then
     Exit(arch32);
   ///
@@ -420,9 +688,6 @@ var AToken     : THandle;
 
 const ATokenForElevation = 20;
 begin
-  result := True;
-  ///
-
   if NOT OpenProcessToken(hProcess, TOKEN_QUERY, AToken) then
     raise EWindowsException.Create('OpenProcessToken');
   try
@@ -477,14 +742,14 @@ begin
       raise EWindowsException.Create(Format('EnumProcessModules[pid: %d]', [AProcessId]));
     ///
 
-    result := DELF_GetModuleFileNameEx(hProcess, hMainModule);
+    result := GetModuleFileNameEx_FromHandle(hProcess, hMainModule);
   finally
     CloseHandle(hProcess);
   end;
 end;
 
-{ _.DELF_GetModuleFileNameEx }
-function DELF_GetModuleFileNameEx(const hProcess, hModule : THandle) : String;
+{ _.GetModuleFileNameEx_FromHandle }
+function GetModuleFileNameEx_FromHandle(const hProcess : THandle; const hModule : THandle) : String;
 var ALength         : Cardinal;
     AReturnedLength : Cardinal;
 begin
@@ -503,8 +768,8 @@ begin
   end;
 end;
 
-{ _.DELF_GetModuleFileNameEx }
-function DELF_GetModuleFileNameEx(const AProcessId : Cardinal; const hModule : THandle) : String;
+{ _.GetModuleFileNameEx_FromPID }
+function GetModuleFileNameEx_FromPID(const AProcessId : Cardinal; const hModule : THandle) : String;
 var hProcess : THandle;
 begin
   result := '';
@@ -514,7 +779,7 @@ begin
   if hProcess = 0 then
     raise EWindowsException.Create(Format('OpenProcess[pid: %d]', [AProcessId]));
   try
-    result := DELF_GetModuleFileNameEx(hProcess, hModule);
+    result := GetModuleFileNameEx_FromHandle(hProcess, hModule);
   finally
     if hProcess <> INVALID_HANDLE_VALUE then
       CloseHandle(hProcess);
@@ -570,7 +835,7 @@ begin
         AFiles.Add(AFilePath);
 
       if AIsDirectory and ARecursive then
-        EnumFilesInDirectory(AFiles, AFilePath, AWildCard, ARecursive);
+        EnumFilesInDirectory(AFiles, AFilePath, AWildCard, ARecursive, AThread);
     until System.SysUtils.FindNext(ASearch) <> 0;
   finally
     System.SysUtils.FindClose(ASearch);
@@ -742,6 +1007,15 @@ end;
 
 { _.Ternary }
 function Ternary(const ACondition : Boolean; const APositiveResult, ANegativeResult : String) : String;
+begin
+  if ACondition then
+    result := APositiveResult
+  else
+    result := ANegativeResult;
+end;
+
+{ _.Ternary }
+function Ternary(const ACondition : Boolean; const APositiveResult, ANegativeResult : Integer) : Integer;
 begin
   if ACondition then
     result := APositiveResult

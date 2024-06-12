@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -33,17 +33,21 @@ type
     Label3: TLabel;
     Label4: TLabel;
     Label5: TLabel;
-    ButtonClose: TButton;
     Label1: TLabel;
+    ImageFlag: TVirtualImage;
+    ImageRepo: TVirtualImage;
     procedure FormKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
-    procedure ButtonCloseClick(Sender: TObject);
     procedure Label3Click(Sender: TObject);
     procedure Label4Click(Sender: TObject);
     procedure Label5Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure Label1Click(Sender: TObject);
+    procedure ImageRepoClick(Sender: TObject);
+    procedure FormResize(Sender: TObject);
+    procedure FormShow(Sender: TObject);
   private
-    { Private declarations }
+    {@M}
+    procedure DoResize();
   public
     { Public declarations }
   end;
@@ -57,9 +61,12 @@ uses uFormMain, uFunctions, uApplication;
 
 {$R *.dfm}
 
-procedure TFormAbout.ButtonCloseClick(Sender: TObject);
+procedure TFormAbout.DoResize();
 begin
-  Close();
+  ImageFlag.Top  := Logo.Top + Logo.Height - ImageFlag.Height;
+  ImageFlag.Left := (Logo.Width div 2) - (ImageFlag.Width div 2) + ScaleValue(48);
+
+  ClientHeight   := ImageRepo.Top + ImageRepo.Height + ScaleValue(8);
 end;
 
 procedure TFormAbout.FormCreate(Sender: TObject);
@@ -74,8 +81,23 @@ procedure TFormAbout.FormKeyUp(Sender: TObject; var Key: Word;
   Shift: TShiftState);
 begin
   case Key of
-    13, 27: ButtonClose.Click();
+    13, 27: Close();
   end;
+end;
+
+procedure TFormAbout.FormResize(Sender: TObject);
+begin
+  DoResize();
+end;
+
+procedure TFormAbout.FormShow(Sender: TObject);
+begin
+  DoResize();
+end;
+
+procedure TFormAbout.ImageRepoClick(Sender: TObject);
+begin
+  Open('https://github.com/PhrozenIO/DLest');
 end;
 
 procedure TFormAbout.Label1Click(Sender: TObject);
@@ -95,7 +117,7 @@ end;
 
 procedure TFormAbout.Label5Click(Sender: TObject);
 begin
-  Open('https://www.github.com/darkcodersc');
+  Open('https://www.github.com/PhrozenIO');
 end;
 
 end.

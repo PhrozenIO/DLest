@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -18,25 +18,45 @@
 {******************************************************************************}
 
 (*
- For Next Releases (v2.0 and +):
-  - Scan Folder (Regex List File, to have multiple regex for expert search)
-  - In process List, option to dump all selected process modules.
-  - Improved Tabs Auto Naming.
-  - Integrate future Unprotect.it API.
-  - Integrate CRC32 in Json Export.
-  - Integrate OpenAI for Library / API's description.
-  - Offer an option to disable Wow64 Redirection.
-  - Possibility to cancel export enumeration thread.
-  - More comprehensive PE Parser.
+ For Next Releases:
+  - Integrate OpenAI for Library / export's descriptions.
+  - Offer an option to disable Wow64 Redirection (Is it useful???).
   - Upload to VirusTotal.
-  - ARM Support.
-  - Improve Speed.
-  - More logs.
-  - Extended Libraries Information handled by uEnumExportsThread should be revised. Actual code is dirty.
-*)
+  - Registry Settings Component
+  - Add a feature to search for PE files that use a specific export (Import Table)
+  - Add a feature to allow user to param a list of application / argument to open a library (PE tools etc..)
+  - Add Import Enumeration (+Color Tabs)
+  - For Process Spy, add an option to support DLL's like some debuggers do
+  - Internationalization
+  - Improve TPopupMenu logic
+  - Resolve TODO's
 
-(*
+  ---
+
   Changelog:
+    # June 2024
+      - Compiled with Delphi 12 Version 29.0.51961.7529
+      - Virtual TreeView Component updated to Version 8.0.3
+      - Improved design, icons, and structure
+      - Unprotect Search integrated (Module / API Name)
+      - Cancel folder scan now works as expected
+      - It is now possible to cancel the export list enumeration task
+      - To considerably improve speed, library hashing (MD5, SHA1, SHA2) has been
+        removed from the export enumeration task
+      - Better thread synchronization/queue practices implemented to limit overhead
+        and increase speed
+      - A new live filter mechanism has been added to enable filtering of exports by their type.
+        This filter works in conjunction with the export search input, allowing for seamless
+        filtering without requiring a refresh.
+      - Export statistics displayed to new status bar
+      - Folder Search "Deep Scan" was replaced by user-defined wildcard file filter.
+      - Extended Library Information feature now offer by default to display libraries as a tree
+      - Anonymous exported function / forwarded function are now enumerated (Lone ordinals)
+      - Process Spy Feature : Debug a process and monitor for DLL Load signals for export enumeration.
+      - File Hash Calculation Tool Feature added.
+      - Other code quality improvements
+
+
     # June 2023
       - Enumerate COM Object (Method & Properties) - File only (not in-memory yet)
       - Possibility to select which items user want to enumerate (exported function, com properties or methods)
@@ -54,7 +74,8 @@ uses
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, VirtualTrees, Vcl.ComCtrls, Vcl.ToolWin,
   Vcl.Menus, Vcl.VirtualImageList, System.ImageList, Vcl.ImgList,
   Vcl.BaseImageCollection, Vcl.ImageCollection, Winapi.ShellAPI,
-  Vcl.ExtCtrls, Generics.Collections, uFormLogs, uPortableExecutable;
+  Vcl.ExtCtrls, Generics.Collections, uFormLogs, uPortableExecutable,
+  Vcl.StdCtrls, Vcl.VirtualImage;
 
 type
   TFormMain = class(TForm)
@@ -91,19 +112,17 @@ type
     ToolButton4: TToolButton;
     ToolThreadManager: TToolButton;
     ToolLogs: TToolButton;
-    ToolButton6: TToolButton;
     ToolAbout: TToolButton;
     ReloadasAdministrator1: TMenuItem;
     N5: TMenuItem;
     ToolButtonAdmin: TToolButton;
     SeparatorAdmin: TToolButton;
-    Options1: TMenuItem;
-    ScanCOMTypesLibraries1: TMenuItem;
-    IncludeCOMMethods1: TMenuItem;
-    IncludeCOMProperties1: TMenuItem;
-    ScanExportedFunctions1: TMenuItem;
-    N6: TMenuItem;
-    IncludeCOMUnknown1: TMenuItem;
+    ToolSepAdmin: TToolButton;
+    ToolScanVT: TToolButton;
+    ToolChat: TToolButton;
+    ToolFileHash: TToolButton;
+    StatusBar: TStatusBar;
+    ButtonProcessMon: TToolButton;
     procedure FormCreate(Sender: TObject);
     procedure Open1Click(Sender: TObject);
     procedure OpenProcess1Click(Sender: TObject);
@@ -125,17 +144,20 @@ type
     procedure ToolAboutClick(Sender: TObject);
     procedure ReloadasAdministrator1Click(Sender: TObject);
     procedure ToolButtonAdminClick(Sender: TObject);
+    procedure FormShow(Sender: TObject);
+    procedure PagesChange(Sender: TObject);
+    procedure ButtonProcessMonClick(Sender: TObject);
+    procedure ToolFileHashClick(Sender: TObject);
   private
     FFileInfo : TSHFileInfo;
 
     {@M}
-    procedure CloseTab(const ATab : TTabSheet);
-
     procedure WMDropFiles(var AMessage: TMessage); message WM_DROPFILES;
 
     function GetScanOptions() : TScanOptions;
   public
     {@M}
+    procedure CloseTab(const ATab : TTabSheet);
     procedure CloseTabs();
     procedure CloseActiveTab();
     procedure RenameActiveTab();
@@ -145,6 +167,7 @@ type
     procedure Warn(const AMessage : String; const Sender : TObject);
 
     procedure ShowInformation(const AMessage : String);
+    procedure UpdateStatusBar();
 
     {@G}
     property ScanOptions : TScanOptions read GetScanOptions;
@@ -157,26 +180,72 @@ implementation
 
 uses uEnumExportsThread, uFunctions, uFormProcessList, VCL.FileCtrl,
   uFormThreadManager, uScanFilesThread, uFormScanFolder, uFrameList, uFormAbout,
-  uApplication, Winapi.ShlObj, uGraphicUtils;
+  uApplication, Winapi.ShlObj, uGraphicUtils, uFormProcessMonitor,
+  uFormProcessMonitorOptions, uFormHashMe, System.UITypes;
 
 {$R *.dfm}
+
+procedure TFormMain.UpdateStatusBar();
+var AStatistics : TExportStatistics;
+
+  function GetValue(const ACount : UInt64; AFilteredCount : UInt64 = 0) : String;
+  begin
+    if (ACount = 0) and (AFilteredCount = 0) then
+      result := '-'
+    else begin
+      if AFilteredCount = 0 then
+        result := IntToStr(ACount)
+      else
+        result := Format('(V:%d, H:%d)', [
+          ACount,
+          AFilteredCount
+        ]);
+    end;
+  end;
+
+begin
+  ZeroMemory(@AStatistics, SizeOf(TExportStatistics));
+  ///
+
+  if Pages.ActivePageIndex > -1 then begin
+    var ATab : TTabSheet := Pages.ActivePage;
+
+    if ATab.Controls[0] is TFrameList then begin
+      var AFrameList : TFrameList := TFrameList(ATab.Controls[0]);
+      ///
+
+      AFrameList.GetStatistics(AStatistics);
+    end;
+  end;
+
+  ///
+  StatusBar.Panels[0].Text := Format('Libraries: %s', [
+    GetValue(AStatistics.Libraries, AStatistics.FilteredLibraries)
+  ]);
+
+  StatusBar.Panels[1].Text := Format('Total: %s', [
+    GetValue(
+      AStatistics.Total,
+      AStatistics.TotalFiltered
+    )
+  ]);
+
+  StatusBar.Panels[2].Text := Format('Functions: %s', [
+    GetValue(AStatistics.Functions, AStatistics.FilteredFunctions)
+  ]);
+
+  StatusBar.Panels[3].Text := Format('Fwd Functions: %s', [
+    GetValue(AStatistics.FwdFunctions, AStatistics.FilteredFwdFunctions)
+  ]);
+
+  StatusBar.Panels[4].Text := Format('COM: %s', [
+    GetValue(AStatistics.COM, AStatistics.FilteredCOM)
+  ]);
+end;
 
 function TFormMain.GetScanOptions(): TScanOptions;
 begin
   result := [];
-  ///
-
-  if self.ScanExportedFunctions1.Checked then
-    Include(result, soExportedFunctions);
-
-  if self.IncludeCOMMethods1.Checked then
-    Include(result, soCOMMethods);
-
-  if self.IncludeCOMProperties1.Checked then
-    Include(result, soCOMProperties);
-
-  if self.IncludeCOMUnknown1.Checked then
-    Include(result, soCOMUnknown);
 end;
 
 procedure TFormMain.ShowInformation(const AMessage : String);
@@ -245,7 +314,7 @@ begin
       for i := 0 to ACount -1 do begin
         ALen := DragQueryFile(AMessage.WParam, I, nil, 0) +1;
 
-        SetLength(AFile, ALen);
+        SetLength(AFile, ALen -1);
 
         DragQueryFile(AMessage.WParam, I, PWideChar(AFile), ALen);
 
@@ -256,7 +325,8 @@ begin
       if AFiles.Count > 0 then
         FormThreadManager.AddWorkerAndStart(TEnumExportsThread.Create(
           AFiles,
-          ExtractFilePath(AFiles.Strings[0])
+          ExtractFilePath(AFiles.Strings[0]),
+          SystemFolderIcon()
         ));
 
     finally
@@ -291,6 +361,11 @@ end;
 procedure TFormMain.About1Click(Sender: TObject);
 begin
   FormAbout.ShowModal();
+end;
+
+procedure TFormMain.ButtonProcessMonClick(Sender: TObject);
+begin
+  FormProcessMonitorOptions.ShowModal();
 end;
 
 procedure TFormMain.CloseActiveTab();
@@ -336,7 +411,6 @@ begin
   InitializeSystemIcons(ImageSystem, FFileInfo);
   ///
 
-
   if Assigned(ChangeWindowMessageFilterEx) then
     ChangeWindowMessageFilterEx(self.Handle, WM_DROPFILES, MSGFLT_ALLOW, nil);
 
@@ -359,8 +433,14 @@ begin
   if self.ReloadasAdministrator1.Visible then
     self.ReloadasAdministrator1.Visible := not IsUserAnAdmin();
 
+  self.ToolSepAdmin.Visible    := self.ReloadasAdministrator1.Visible;
   self.ToolButtonAdmin.Visible := self.ReloadasAdministrator1.Visible;
   self.SeparatorAdmin.Visible  := self.ReloadasAdministrator1.Visible;
+end;
+
+procedure TFormMain.FormShow(Sender: TObject);
+begin
+  UpdateStatusBar();
 end;
 
 procedure TFormMain.hreadManager1Click(Sender: TObject);
@@ -385,7 +465,8 @@ begin
   else if OpenDialog.Files.Count > 1 then begin
     FormThreadManager.AddWorkerAndStart(TEnumExportsThread.Create(
       TStringList(OpenDialog.Files),
-      ExtractFilePath(OpenDialog.Files.Strings[0])
+      ExtractFilePath(OpenDialog.Files.Strings[0]),
+      SystemFileIcon(OpenDialog.Files.Strings[0])
     ));
   end;
 end;
@@ -403,6 +484,11 @@ end;
 procedure TFormMain.OpenProcess1Click(Sender: TObject);
 begin
   ShowForm(FormProcessList);
+end;
+
+procedure TFormMain.PagesChange(Sender: TObject);
+begin
+  self.UpdateStatusBar();
 end;
 
 procedure TFormMain.RenameActiveTab1Click(Sender: TObject);
@@ -423,6 +509,11 @@ end;
 procedure TFormMain.ToolButtonAdminClick(Sender: TObject);
 begin
   self.ReloadasAdministrator1.Click();
+end;
+
+procedure TFormMain.ToolFileHashClick(Sender: TObject);
+begin
+  FormHashMe.Show();
 end;
 
 procedure TFormMain.ToolLogsClick(Sender: TObject);

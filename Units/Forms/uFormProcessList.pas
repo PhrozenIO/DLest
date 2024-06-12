@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -24,7 +24,9 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ExtCtrls, OMultiPanel, VirtualTrees,
-  Vcl.VirtualImage, Vcl.StdCtrls, Vcl.Menus, Vcl.ComCtrls, Vcl.ToolWin;
+  Vcl.VirtualImage, Vcl.StdCtrls, Vcl.Menus, Vcl.ComCtrls, Vcl.ToolWin,
+  VirtualTrees.BaseAncestorVCL, VirtualTrees.BaseTree, VirtualTrees.AncestorVCL,
+  VirtualTrees.Types, uConstants;
 
 type
   TProcessTreeData = record
@@ -42,6 +44,11 @@ type
     ImageIndex : Integer;
   end;
   PModuleTreeData = ^TModuleTreeData;
+
+  TUpdateListKind = (
+    ulkProcess,
+    ulkModules
+  );
 
   TFormProcessList = class(TForm)
     MultiPanel: TOMultiPanel;
@@ -63,8 +70,13 @@ type
     SelectAll1: TMenuItem;
     DeselectAll1: TMenuItem;
     N3: TMenuItem;
-    ToolBar: TToolBar;
-    ToolRefresh: TToolButton;
+    MainMenu: TMainMenu;
+    File1: TMenuItem;
+    Refresh1: TMenuItem;
+    N4: TMenuItem;
+    CalculateSelectedImageFileHashes1: TMenuItem;
+    CalculateSelectedImageFileHashes2: TMenuItem;
+    N5: TMenuItem;
     procedure VSTProcessChange(Sender: TBaseVirtualTree; Node: PVirtualNode);
     procedure VSTProcessFocusChanged(Sender: TBaseVirtualTree;
       Node: PVirtualNode; Column: TColumnIndex);
@@ -109,19 +121,25 @@ type
     procedure SelectAll1Click(Sender: TObject);
     procedure DeselectAll1Click(Sender: TObject);
     procedure Refresh1Click(Sender: TObject);
-    procedure ToolRefreshClick(Sender: TObject);
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure CalculateSelectedImageFileHashes1Click(Sender: TObject);
+    procedure CalculateSelectedImageFileHashes2Click(Sender: TObject);
   private
     FTotalModulesSize : UInt64;
 
     {@M}
+    procedure Reset();
     procedure DoResize();
     procedure OpenProcess(const pNode : PVirtualNode);
     procedure OpenSelectedModulesFromMemory();
     procedure OpenSelectedModulesFromFiles();
+    procedure OnBeginUpdateMessage(var AMessage : TMessage); message WM_MESSAGE_BEGIN_UPDATE;
+    procedure OnEndUpdateMessage(var AMessage : TMessage); message WM_MESSAGE_END_UPDATE;
+  protected
+    {@M}
     procedure CreateParams(var Params: TCreateParams); override;
   public
     {@M}
-    procedure Reset();
     procedure Refresh();
 
     {@C}
@@ -137,10 +155,43 @@ var
 implementation
 
 uses uEnumProcessThread, uEnumExportsThread, uFormMain, uEnumModulesThread,
-     uFunctions, System.Math, uConstants, uGraphicUtils, Generics.Collections,
-     uFormThreadManager, uPortableExecutable, VCL.FileCtrl;
+     uFunctions, System.Math, uGraphicUtils, Generics.Collections,
+     uFormThreadManager, uPortableExecutable, VCL.FileCtrl, uFormHashMe;
 
 {$R *.dfm}
+
+procedure TFormProcessList.OnBeginUpdateMessage(var AMessage : TMessage);
+begin
+  case TUpdateListKind(AMessage.LParam) of
+    ulkProcess : begin
+      Reset();
+      ///
+
+      VSTProcess.BeginUpdate();
+    end;
+
+    ulkModules : begin
+      VSTModules.Clear();
+
+      FTotalModulesSize := 0;
+
+      VSTModules.BeginUpdate();
+    end;
+  end;
+end;
+
+procedure TFormProcessList.OnEndUpdateMessage(var AMessage : TMessage);
+begin
+  case TUpdateListKind(AMessage.LParam) of
+    ulkProcess : VSTProcess.EndUpdate();
+
+    ulkModules : begin
+      FTotalModulesSize := AMessage.WParam;
+
+      VSTModules.EndUpdate();
+    end;
+  end;
+end;
 
 procedure TFormProcessList.CreateParams(var Params: TCreateParams);
 begin
@@ -150,6 +201,43 @@ begin
   Params.ExStyle := Params.ExStyle and NOT WS_EX_APPWINDOW;
 
   Params.WndParent := 0;
+end;
+
+procedure TFormProcessList.CalculateSelectedImageFileHashes1Click(
+  Sender: TObject);
+var pData : PProcessTreeData;
+begin
+  if VSTProcess.FocusedNode = nil then
+    Exit();
+  ///
+
+  pData := VSTProcess.FocusedNode.GetData;
+
+  ///
+  FormHashMe.AddFile(pData^.ImagePath);
+end;
+
+procedure TFormProcessList.CalculateSelectedImageFileHashes2Click(
+  Sender: TObject);
+var AFiles : TStringList;
+begin
+  AFiles := TStringList.Create();
+  try
+    for var pNode in VSTModules.Nodes do begin
+      if vsSelected in pNode.States then begin
+        var pData : PModuleTreeData := pNode.GetData;
+        ///
+
+        AFiles.Add(pData^.ImagePath);
+      end;
+    end;
+
+    ///
+    FormHashMe.AddFiles(AFiles);
+  finally
+    if Assigned(AFiles) then
+      FreeAndNil(AFiles);
+  end;
 end;
 
 constructor TFormProcessList.Create(AOwner: TComponent);
@@ -168,7 +256,6 @@ end;
 procedure TFormProcessList.DoResize();
 var ARect       : TRect;
     ACaption    : String;
-    AClientRect : TRect;
 begin
   LabelMessage.Canvas.Font := LabelMessage.Font;
 
@@ -203,7 +290,7 @@ begin
       Exit();
     ///
 
-    APortableExecutable := TPortableExecutable.CreateFromMemory(
+    APortableExecutable := TPortableExecutable.CreateFromMemory_PID(
       pData^.ProcessId,
       pData^.ModuleBase,
       []
@@ -221,6 +308,14 @@ begin
       if Assigned(APortableExecutable) then
         FreeAndNil(APortableExecutable);
     end;
+  end;
+end;
+
+procedure TFormProcessList.FormKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  case Key of
+    27 : self.Close();
   end;
 end;
 
@@ -260,11 +355,6 @@ begin
   VSTModules.SelectAll(True);
 end;
 
-procedure TFormProcessList.ToolRefreshClick(Sender: TObject);
-begin
-  self.Refresh();
-end;
-
 procedure TFormProcessList.VSTModulesBeforeCellPaint(Sender: TBaseVirtualTree;
   TargetCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex;
   CellPaintMode: TVTCellPaintMode; CellRect: TRect; var ContentRect: TRect);
@@ -297,8 +387,6 @@ begin
     AProgress,
     False
   );
-
-  CellPaintMode := cpmPaint;
 end;
 
 procedure TFormProcessList.VSTModulesChange(Sender: TBaseVirtualTree;
@@ -512,13 +600,15 @@ end;
 
 procedure TFormProcessList.PopupModulesPopup(Sender: TObject);
 begin
-  OpenSelectedModules1.Enabled          := VSTModules.FocusedNode <> nil;
-  OpenSelectedModulesFromFiles1.Enabled := VSTModules.FocusedNode <> nil;
+  OpenSelectedModules1.Enabled              := VSTModules.FocusedNode <> nil;
+  OpenSelectedModulesFromFiles1.Enabled     := VSTModules.FocusedNode <> nil;
+  CalculateSelectedImageFileHashes2.Enabled := VSTModules.SelectedCount >= 1;
 end;
 
 procedure TFormProcessList.PopupProcessPopup(Sender: TObject);
 begin
-  self.OpenProcess1.Enabled := VSTProcess.FocusedNode <> nil;
+  OpenProcess1.Enabled := VSTProcess.FocusedNode <> nil;
+  CalculateSelectedImageFileHashes1.Enabled := OpenProcess1.Enabled;
 end;
 
 procedure TFormProcessList.OpenSelectedModulesFromMemory();
@@ -566,7 +656,7 @@ var pNode        : PVirtualNode;
     pData        : PModuleTreeData;
     AFiles       : TStringList;
     ACaption     : String;
-    AProcessName : String;
+    AImagePath   : String;
 begin
   AFiles := TStringList.Create();
   try
@@ -588,22 +678,28 @@ begin
 
       if ACaption.IsEmpty then begin
         try
-          AProcessName := ExtractFileName(GetImagePathFromProcessId(pData^.ProcessId));
+          AImagePath := GetImagePathFromProcessId(pData^.ProcessId);
         except
-          AProcessName := 'Unknown';
+          AImagePath := 'Unknown';
         end;
 
         ///
         ACaption := Format('%s (%d)', [
-                      AProcessName,
+                      ExtractFileName(AImagePath),
                       pData^.ProcessId
                     ]);
       end;
     end;
 
     if AFiles.Count > 0 then begin
+      var AImageIndex : Integer;
+      if not FileExists(AImagePath) then
+        AImageIndex := SystemFileIcon('.exe', true)
+      else
+        AImageIndex := SystemFileIcon(AImagePath);
+
       FormThreadManager.AddWorkerAndStart(
-        TEnumExportsThread.Create(AFiles, ACaption)
+        TEnumExportsThread.Create(AFiles, ACaption, AImageIndex)
       );
     end;
   finally

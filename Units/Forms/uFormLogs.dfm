@@ -11,6 +11,8 @@ object FormLogs: TFormLogs
   Font.Height = -12
   Font.Name = 'Segoe UI'
   Font.Style = []
+  KeyPreview = True
+  OnKeyDown = FormKeyDown
   TextHeight = 15
   object VST: TVirtualStringTree
     AlignWithMargins = True
@@ -40,6 +42,7 @@ object FormLogs: TFormLogs
     Colors.UnfocusedColor = clGray
     Colors.UnfocusedSelectionColor = clWhite
     Colors.UnfocusedSelectionBorderColor = clWhite
+    DefaultNodeHeight = 19
     Header.AutoSizeIndex = -1
     Header.Options = [hoAutoResize, hoColumnResize, hoDrag, hoShowSortGlyphs, hoVisible]
     Images = FormMain.VirtualImageList
@@ -70,7 +73,7 @@ object FormLogs: TFormLogs
       item
         Position = 2
         Text = 'Message'
-        Width = 352
+        Width = 366
       end>
   end
   object PopupMenu: TPopupMenu

@@ -9,7 +9,7 @@
 {                                                                              }
 {                                                                              }
 {                   Author: DarkCoderSc (Jean-Pierre LESUEUR)                  }
-{                   https://www.twitter.com/                                   }
+{                   https://www.twitter.com/darkcodersc                        }
 {                   https://www.phrozen.io/                                    }
 {                   https://github.com/darkcodersc                             }
 {                   License: Apache License 2.0                                }
@@ -38,12 +38,24 @@ type
     eemFromMemory
   );
 
+  TBeginUpdateMessageParam = record
+    Task    : TThread;
+    Grouped : Boolean;
+    Max     : UInt64;
+  end;
+  PBeginUpdateMessageParam = ^TBeginUpdateMessageParam;
+
+  TEndUpdateMessageParam = record
+    TotalExports : UInt64;
+    Canceled     : Boolean;
+  end;
+  PEndUpdateMessageParam = ^TEndUpdateMessageParam;
+
   TEnumExportsThread = class(TWorkerThread)
   private
     FImageFiles  : TStringList;
     FTab         : TTabSheet;
     FFrame       : TFrameList;
-    FExtForm     : TFormExtendedLibrariesInformation;
     FMode        : TEnumExportsMode;
     FModules     : TList<Pointer>;
     FProcessId   : THandle;
@@ -51,16 +63,15 @@ type
     FScanOptions : TScanOptions;
 
     {@C}
-    constructor Create(); overload;
     function ProcessImage(const AImageFile : String; const APEParser : TPortableExecutable) : UInt64;
-    procedure ProcessImageExtendedInformation(const AImageFile : String; const AExportsCount : UInt64);
   protected
     {@M}
     procedure ThreadExecute(); override;
   public
     {@C}
+    constructor Create(); override;
     constructor Create(const AImageFile : String); overload;
-    constructor Create(const AImageFiles : TStringList; const ACaption : String); overload;
+    constructor Create(const AImageFiles : TStringList; const ACaption : String; const AIconIndex : Integer); overload;
 
     constructor Create(const AProcessId : Cardinal; const AModules : TList<Pointer> = nil); overload;
 
@@ -69,42 +80,7 @@ type
 
 implementation
 
-uses VirtualTrees, uFormMain, uFunctions, uConstants, uExceptions, System.Hash;
-
-{ TEnumExportsThread.ProcessImageExtendedInformation }
-procedure TEnumExportsThread.ProcessImageExtendedInformation(const AImageFile : String; const AExportsCount : UInt64);
-var pData     : uFormExtendedLibrariesInformation.PTreeData;
-    pNode     : PVirtualNode;
-    AFileSize : UInt64;
-begin
-  if AExportsCount = 0 then
-    Exit();
-  ///
-
-  AFileSize := GetFileSize(AImageFile);
-
-  Synchronize(procedure begin
-    FFrame.ExtForm.IncTotalFilesSize(AFileSize); // TODO Dirty
-    FFrame.ExtForm.IncTotalExports(AExportsCount); // TODO Dirty
-    pNode := FFrame.ExtForm.VST.AddChild(nil); // TODO Dirty
-    pData := pNode.GetData;
-  end);
-
-  pData^.ImagePath    := AImageFile;
-  pData^.ExportsCount := AExportsCount;
-  pData^.FileSize     := AFileSize;
-
-  try
-    pData^.CompanyName  := GetApplicationCompany(AImageFile);
-    pData^.FileVersion  := GetApplicationVersion(AImageFile);
-    pData^.MD5 := System.Hash.THashMD5.GetHashStringFromFile(AImageFile);
-    pData^.SHA1 := System.Hash.THashSHA1.GetHashStringFromFile(AImageFile);
-    pData^.SHA2 := System.Hash.THashSHA2.GetHashStringFromFile(AImageFile);
-  except
-  end;
-
-  pData^.ImageIndex  := SystemFileIcon(AImageFile);
-end;
+uses VirtualTrees, uFormMain, uFunctions, uConstants, uExceptions, VirtualTrees.Types;
 
 { TEnumExportsThread.ProcessImage }
 function TEnumExportsThread.ProcessImage(const AImageFile : String; const APEParser : TPortableExecutable) : UInt64;
@@ -121,9 +97,6 @@ begin
   ///
 
   try
-    ProcessImageExtendedInformation(AImageFile, APEParser.ExportList.Count); // TODO Dirty
-    ///
-
     if FGroup and (APEParser.ExportList.Count > 0) then begin
       Synchronize(procedure begin
         pParentNode := FFrame.VST.AddChild(nil);
@@ -168,9 +141,7 @@ begin
       result := APEParser.ExportList.Count;
     end;
   finally
-    Synchronize(procedure begin
-      FFrame.ProgressBar.Position := FFrame.ProgressBar.Position +1;
-    end);
+    PostMessage(FFrame.Handle, WM_MESSAGE_INCREMENT_PB, 0, 0);
   end;
 end;
 
@@ -187,24 +158,31 @@ var APEParser     : TPortableExecutable;
       E.Message := Format('Could not parse:"%s", error:"%s"', [AImageFile, E.Message]);
       ///
 
-      Synchronize(procedure begin
+      // I sometimes prefer to use Queue over the pure Windows PostMessage method.
+      // This is mainly due to personal code design preferences.
+      // I rarely like mixing main-thread destination code within thread code
+      // using Queue. In some cases, it doesn't pose any problems if the mixed
+      // code is very small and straightforward.
+      Queue(procedure begin
         FormMain.OnException(self, E);
       end);
     end;
 
 begin
   try
-    Synchronize(procedure begin
-      FFrame.BeginUpdate();
-
-      FFrame.ProgressBar.Max := FImageFiles.Count + FModules.Count;
-      FFrame.ProgressBar.Visible :=  FFrame.ProgressBar.Max > 1;
-    end);
-
     FGroup := (FImageFiles.Count > 1) or (FModules.Count > 1);
-    Synchronize(procedure begin
-      FFrame.Grouped := FGroup;
-    end);
+    ///
+
+    // Notify Frame for Begin Update
+    var pParam : PBeginUpdateMessageParam;
+    New(pParam);
+
+    pParam^.Grouped := FGroup;
+    pParam^.Max     := (FImageFiles.Count + FModules.Count);
+    pParam^.Task    := self;
+
+    if not PostMessage(FFrame.Handle, WM_MESSAGE_BEGIN_UPDATE, 0, LPARAM(pParam)) then
+      Dispose(pParam);
 
     ATotalExports := 0;
 
@@ -213,17 +191,25 @@ begin
         for AImageFile in FImageFiles do begin
           if Terminated then
             break;
+          ///
+
+          // Resolve Shortcut if it is needed.
+          var AResolvedImageFile := CleanFileName(GetShortcutTarget(AImageFile));
+
+          if not FileExists(AResolvedImageFile) then
+            continue;
+
           try
-            APEParser := TPortableExecutable.CreateFromFile(AImageFile, FScanOptions);
+            APEParser := TPortableExecutable.CreateFromFile(AResolvedImageFile, FScanOptions);
             try
-              Inc(ATotalExports, ProcessImage(AImageFile, APEParser));
+              Inc(ATotalExports, ProcessImage(AResolvedImageFile, APEParser));
             finally
               if Assigned(APEParser) then
                 FreeAndNil(APEParser);
             end;
           except
             on E : Exception do
-              RaiseException(AImageFile, E);
+              RaiseException(AResolvedImageFile, E);
           end;
         end;
       end;
@@ -236,14 +222,15 @@ begin
           for pModule in FModules do begin
             if Terminated then
               break;
+            ///
             try
               try
-                AImageFile := DELF_GetModuleFileNameEx(hProcess, NativeUInt(pModule));
+                AImageFile := CleanFileName(GetModuleFileNameEx_FromHandle(hProcess, NativeUInt(pModule)));
               except
                 AImageFile := Format('Unknown Module (0x%p)', [pModule]);
               end;
 
-              APEParser := TPortableExecutable.CreateFromMemory(hProcess, pModule, FScanOptions);
+              APEParser := TPortableExecutable.CreateFromMemory_HANDLE(hProcess, pModule, FScanOptions);
               try
                 Inc(ATotalExports, ProcessImage(AImageFile, APEParser));
               finally
@@ -262,15 +249,15 @@ begin
       end;
     end;
   finally
-    Synchronize(procedure begin
-      FFrame.TotalExports := ATotalExports;
+    // Notify Frame for End Update
+    var pParam : PEndUpdateMessageParam;
+    New(pParam);
 
-      FFrame.VST.FullExpand();
+    pParam^.TotalExports := ATotalExports;
+    pParam^.Canceled     := Terminated;
 
-      FFrame.ProgressBar.Visible := False;
-
-      FFrame.EndUpdate();
-    end);
+    if not PostMessage(FFrame.Handle, WM_MESSAGE_END_UPDATE, 0, LPARAM(pParam)) then
+      Dispose(pParam);
   end;
 end;
 
@@ -289,8 +276,6 @@ begin
   FFrame := TFrameList.Create(FTab);
   FFrame.Parent := FTab;
 
-  FExtForm := FFrame.ExtForm;
-
   FormMain.Pages.ActivePage := FTab;
 
   FModules := TList<Pointer>.Create();
@@ -305,16 +290,13 @@ begin
   Create();
   ///
 
-  // TODO check in PE Header if it is library
-  // If it is a valid PE but not a library, then list imported libraries
-
   FImageFiles.Add(AImageFile);
 
   FTab.Caption := ExtractFileName(AImageFile);
-  FTab.ImageIndex := _ICON_PAGES_DLL;
+  FTab.ImageIndex := SystemFileIcon(AImageFile);
 end;
 
-constructor TEnumExportsThread.Create(const AImageFiles : TStringList; const ACaption : String);
+constructor TEnumExportsThread.Create(const AImageFiles : TStringList; const ACaption : String; const AIconIndex : Integer);
 begin
   Create();
   ///
@@ -324,8 +306,12 @@ begin
 
   FImageFiles.Assign(AImageFiles);
 
-  FTab.Caption    := ACaption;
-  FTab.ImageIndex := _ICON_PAGES_DLL_GROUP;
+  // Rather than setting "TStringList.Duplicates" to dupIgnore for each instance where "TStringList" is used to store images,
+  // I prefer to remove all duplicates at this point in the assigned list to ensure it is deduplicated.
+  RemoveDuplicates(FImageFiles);
+
+  FTab.Caption := ACaption;
+  FTab.ImageIndex := AIconIndex;
 end;
 
 constructor TEnumExportsThread.Create(const AProcessId : Cardinal; const AModules : TList<Pointer> = nil);
@@ -336,6 +322,7 @@ var AModulesCount  : Cardinal;
     hProcess       : THandle;
     AModuleName    : String;
     AProcessName   : String;
+    AImagePath     : String;
 begin
   Create();
   ///
@@ -375,14 +362,15 @@ begin
   end;
 
   try
-    AProcessName := ExtractFileName(GetImagePathFromProcessId(AProcessId));
+    AImagePath := GetImagePathFromProcessId(AProcessId);
+    AProcessName := ExtractFileName(AImagePath);
   except
     AProcessName := 'Unknown';
   end;
 
   if FModules.Count = 1 then begin
     try
-      AModuleName := ExtractFileName(DELF_GetModuleFileNameEx(AProcessId, THandle(FModules.Items[0])));
+      AModuleName := ExtractFileName(GetModuleFileNameEx_FromPID(AProcessId, THandle(FModules.Items[0])));
     except
       AModuleName := Format('0x%p', [FModules.Items[0]]);
     end;
@@ -400,7 +388,8 @@ begin
   end else
     raise Exception.Create(Format('No module so far for process "%d".', [AProcessId]));
 
-  FTab.ImageIndex := _ICON_PAGES_PROCESS;
+  ///
+  FTab.ImageIndex := SystemFileIcon(AImagePath);
 end;
 
 destructor TEnumExportsThread.Destroy();
